@@ -24,7 +24,7 @@ def get_db_connection():
         host="localhost",
         database="assetflow_db",
         user="postgres",
-        password="your_db_password",  # Apna actual password yahan daalein
+        password="mehra",  # Apna actual password yahan daalein
         cursor_factory=RealDictCursor
     )
     return conn
