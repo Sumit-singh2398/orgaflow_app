@@ -13,7 +13,7 @@ class BookingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // TOP HEADER: Title & Calendar Icon
+          
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -33,7 +33,7 @@ class BookingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // TABS: Today, Week, Month
+            
               Row(
                 children: [
                   _buildTabButton('Today', true),
@@ -45,7 +45,7 @@ class BookingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // RESOURCE DROPDOWN (Conference Room A)
+              
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 decoration: BoxDecoration(
@@ -66,7 +66,7 @@ class BookingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // HORIZONTAL CALENDAR DATE BAR (Mo 18 to Su 24, 22 selected)
+        
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -79,7 +79,7 @@ class BookingsScreen extends StatelessWidget {
                     SizedBox(width: 8),
                     _DateCard(day: 'Th', date: '21', isSelected: false),
                     SizedBox(width: 8),
-                    _DateCard(day: 'Fr', date: '22', isSelected: true), // Selected
+                    _DateCard(day: 'Fr', date: '22', isSelected: true), 
                     SizedBox(width: 8),
                     _DateCard(day: 'Sa', date: '23', isSelected: false),
                     SizedBox(width: 8),
@@ -89,7 +89,7 @@ class BookingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // SELECTED DATE LABEL
+              
               const Text(
                 'Friday, 22 August',
                 style: TextStyle(
@@ -100,7 +100,7 @@ class BookingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // TIME SLOTS LIST
+              
               _buildTimeSlotRow('09:00', 'Booked', Colors.red.shade700, Colors.red.withOpacity(0.08)),
               const SizedBox(height: 10),
               _buildTimeSlotRow('10:00', 'Available', Colors.green.shade700, Colors.green.withOpacity(0.12)),
@@ -113,7 +113,7 @@ class BookingsScreen extends StatelessWidget {
           ),
         ),
       ),
-      // FLOATING ACTION BUTTON (+)
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
         backgroundColor: const Color(0xFF3B5BDB),
@@ -123,7 +123,7 @@ class BookingsScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for Top Tabs (Today, Week, Month)
+  
   static Widget _buildTabButton(String label, bool isSelected) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -145,7 +145,7 @@ class BookingsScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for Time Slot Rows
+
   static Widget _buildTimeSlotRow(String time, String status, Color textColor, Color bgColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
@@ -186,7 +186,6 @@ class BookingsScreen extends StatelessWidget {
   }
 }
 
-// Helper widget for Horizontal Calendar Date Cards
 class _DateCard extends StatelessWidget {
   final String day;
   final String date;

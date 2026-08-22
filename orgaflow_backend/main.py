@@ -12,19 +12,19 @@ app = FastAPI()
 # JWT Configuration
 SECRET_KEY = "your_super_secret_key_here_change_in_production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 Day
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 
 
 # Password hashing configuration
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
-# PostgreSQL Database Connection Function
+
 def get_db_connection():
     conn = psycopg2.connect(
         host="localhost",
         database="assetflow_db",
         user="postgres",
-        password="mehra",  # Apna actual password yahan daalein
+        password="mehra",  
         cursor_factory=RealDictCursor
     )
     return conn
@@ -39,7 +39,7 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-# Helper function to create JWT token
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -16,8 +17,23 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   
-  final TextEditingController _emailController = TextEditingController(text: 'sumit@assetflow.com');
+  final TextEditingController _emailController = TextEditingController(text: 'john@assetflow.com');
   final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _initGoogleSignIn();
+  }
+
+  
+  Future<void> _initGoogleSignIn() async {
+    try {
+      await GoogleSignIn.instance.initialize();
+    } catch (e) {
+      print("Google Sign-In Initialization Error: $e");
+    }
+  }
 
   @override
   void dispose() {
@@ -26,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Backend par Login API call karne ka function
+  // Email & Password Backend Login
   Future<void> _loginUser() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -43,7 +59,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Windows Desktop ke liye '127.0.0.1' use karein
       final url = Uri.parse('http://127.0.0.1:8000/api/auth/login');
       
       final response = await http.post(
@@ -84,6 +99,29 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Connection error: $e')),
+      );
+    }
+  }
+
+  // Updated Google Sign-In Logic (v7 compatible)
+  Future<void> _loginWithGoogle() async {
+    try {
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      print("Google User Email: ${googleUser.email}");
+      print("Google User Name: ${googleUser.displayName}");
+      print("Google ID Token: $idToken");
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google Sign-In Error: $e')),
       );
     }
   }
@@ -159,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 32),
               
-              // SIGN IN BUTTON WITH LOADING & API CALL
+              // SIGN IN BUTTON
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -179,6 +217,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
                 ),
               ),
+              const SizedBox(height: 16),
+
+              
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _loginWithGoogle,
+                  icon: const Icon(Icons.g_mobiledata, size: 28, color: Color(0xFF3B5BDB)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFE0E0E0)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  label: const Text(
+                    'Sign in with Google',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF444444)),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

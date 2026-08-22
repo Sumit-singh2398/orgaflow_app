@@ -19,9 +19,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
-  // List of screens for the Bottom Navigation
+  
   final List<Widget> _screens = [
-    const DashboardHomeContent(), // Home Content (Dashboard ka main UI)
+    const DashboardHomeContent(), 
     const AssetsScreen(),
     const BookingsScreen(),
     const MaintenanceScreen(),
@@ -54,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// Dashboard ka Home content jo top par dikhega
+
 class DashboardHomeContent extends StatelessWidget {
   const DashboardHomeContent({super.key});
 
@@ -66,7 +66,7 @@ class DashboardHomeContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting & Notification Icon with Navigation
+        
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -91,7 +91,7 @@ class DashboardHomeContent extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Metrics: Available, Allocated, Maintenance
+            
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -106,7 +106,7 @@ class DashboardHomeContent extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Quick Actions with Navigation to respective screens
+            
             const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Row(
@@ -132,7 +132,7 @@ class DashboardHomeContent extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Asset Overview Chart Area
+          
             const Text('Asset Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Container(
@@ -143,7 +143,7 @@ class DashboardHomeContent extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Recent Activity
+        
             const Text('Recent Activity', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             _buildActivityItem('AF-0001 allocated to Rahul', 'Done', Colors.green),
