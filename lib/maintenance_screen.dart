@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-
-// =====================================================================
-// MAINTENANCE SCREEN - Maintenance Requests aur unke status dikhane ke liye
-// =====================================================================
 class MaintenanceScreen extends StatelessWidget {
   const MaintenanceScreen({super.key});
 
@@ -180,22 +176,6 @@ class MaintenanceScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-      // BOTTOM NAVIGATION BAR
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 3, // Maintenance tab selected
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF3B5BDB),
-        unselectedItemColor: const Color(0xFF888888),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), label: 'Assets'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_outlined), label: 'Bookings'),
-          BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Maintenance'),
-          BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'More'),
-        ],
       ),
     );
   }
