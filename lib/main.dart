@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'signup_screen.dart'; // Agar alag file mein rakha hai, toh import karein
 
 void main() {
   runApp(const AssetFlowApp());
-  // Set the status bar to dark icons on light background
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
 }
 
@@ -16,11 +16,12 @@ class AssetFlowApp extends StatelessWidget {
       title: 'AssetFlow',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Light background color
-        fontFamily: 'Inter', // Assuming a clean sans-serif font like Inter
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        fontFamily: 'Inter',
         useMaterial3: true,
       ),
       home: const LoginScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -48,31 +49,49 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // SafeArea to avoid notch/status bar
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 40), // Spacing from top
-              // Logo
+              const SizedBox(height: 40),
+              // Elegant App Branding Header
               Container(
-                width: 60,
-                height: 60,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B5BDB), // Blue color
+                  color: const Color(0xFF3B5BDB),
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    'A',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'O',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ORGAFLOW',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -82,18 +101,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A), // Dark text
+                  color: Color(0xFF1A1A1A),
                 ),
               ),
               const SizedBox(height: 8),
               // Subtitle
               const Text(
-                'Sign in to manage your organization’s assets.',
+                'Sign in to manage and track your organization’s assets.',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFF666666), // Grey text
-                  height: 1.4, // Line height
+                  color: Color(0xFF666666),
+                  height: 1.4,
                 ),
               ),
               const SizedBox(height: 40),
@@ -161,7 +180,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: Color(0xFF3B5BDB)),
                   ),
-                  // Suffix icon for password visibility
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -180,7 +198,6 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Remember Me
                   Row(
                     children: [
                       Checkbox(
@@ -202,10 +219,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                  // Forgot Password
                   GestureDetector(
                     onTap: () {
-                      // Handle forgot password tap
                       print('Forgot password tapped');
                     },
                     child: const Text(
@@ -225,7 +240,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Handle sign in
                     print('Sign In tapped with email: ${_emailController.text}');
                   },
                   style: ElevatedButton.styleFrom(
@@ -234,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 0, // Flat button
+                    elevation: 0,
                   ),
                   child: const Text(
                     'Sign In',
@@ -247,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              // Sign Up Prompt
+              // Sign Up Prompt with Navigation
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -260,8 +274,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // Handle sign up tap
-                      print('Sign Up tapped');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SignupScreen()),
+                      );
                     },
                     child: const Text(
                       'Sign Up',
