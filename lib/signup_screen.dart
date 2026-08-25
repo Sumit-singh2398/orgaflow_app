@@ -31,26 +31,49 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  // Backend par Signup request bhejne ka function
+  // Backend par Signup request bhejne ka function with strict checks
   Future<void> _registerUser() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    // Basic validation
-    if (firstName.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields')),
-      );
+    // 1. Check if any mandatory field is empty
+    if (firstName.isEmpty || 
+        lastName.isEmpty || 
+        email.isEmpty || 
+        phone.isEmpty || 
+        password.isEmpty || 
+        confirmPassword.isEmpty) {
+      _showErrorSnackBar('Please fill in all mandatory fields!');
       return;
     }
 
+    // 2. Strict Advanced Email Format Validation using RegEx
+    // Yeh ensure karega ki email ka format bilkul standard aur real ho (e.g., user@domain.com)
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      _showErrorSnackBar('Please enter a valid, real email address (e.g., name@gmail.com)');
+      return;
+    }
+
+    // 3. Phone number validation (10 digits check)
+    if (phone.length < 10) {
+      _showErrorSnackBar('Please enter a valid 10-digit phone number!');
+      return;
+    }
+
+    // 4. Check password length & strength
+    if (password.length < 6) {
+      _showErrorSnackBar('Password must be at least 6 characters long!');
+      return;
+    }
+
+    // 5. Check if passwords match
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      _showErrorSnackBar('Passwords do not match!');
       return;
     }
 
@@ -59,7 +82,8 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      // Android Emulator ke liye '10.0.2.2', PC/Web ke liye '127.0.0.1' use karein
+      // NOTE: Android Emulator ke liye 'http://10.0.2.2:8000/api/auth/signup' use karein.
+      // Web ya Windows ke liye 'http://127.0.0.1:8000/api/auth/signup' theek hai.
       final url = Uri.parse('http://127.0.0.1:8000/api/auth/signup');
       
       final response = await http.post(
@@ -68,6 +92,7 @@ class _SignupScreenState extends State<SignupScreen> {
         body: jsonEncode({
           'name': '$firstName $lastName'.trim(),
           'email': email,
+          'phone': phone,
           'password': password,
         }),
       );
@@ -76,8 +101,7 @@ class _SignupScreenState extends State<SignupScreen> {
         _isLoading = false;
       });
 
-      if (response.statusCode == 201) {
-        // Success hone par Dashboard ya Login screen par bhej dein
+      if (response.statusCode == 200 || response.statusCode == 201) {
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,
@@ -87,19 +111,31 @@ class _SignupScreenState extends State<SignupScreen> {
       } else {
         final errorData = jsonDecode(response.body);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorData['detail'] ?? 'Signup failed')),
-        );
+        _showErrorSnackBar(errorData['detail'] ?? 'Registration failed!');
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connection error: $e')),
-      );
+      _showErrorSnackBar('Connection error! Please check if backend is running.');
     }
+  }
+
+  // Helper function for UI Error snackbar
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -128,9 +164,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('First Name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+                        const Text('First Name *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
                         const SizedBox(height: 8),
-                        TextField(controller: _firstNameController, decoration: _inputDecoration('Sumit')),
+                        TextField(controller: _firstNameController, decoration: _inputDecoration('JOHN')),
                       ],
                     ),
                   ),
@@ -139,28 +175,28 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Last Name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+                        const Text('Last Name *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
                         const SizedBox(height: 8),
-                        TextField(controller: _lastNameController, decoration: _inputDecoration('Singh')),
+                        TextField(controller: _lastNameController, decoration: _inputDecoration('DAS')),
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
-              const Text('Email', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+              const Text('Email *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
               const SizedBox(height: 8),
               TextField(controller: _emailController, decoration: _inputDecoration('name@company.com')),
               const SizedBox(height: 20),
-              const Text('Phone', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+              const Text('Phone *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
               const SizedBox(height: 8),
-              TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: _inputDecoration('+91 98765 43210')),
+              TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: _inputDecoration('+91 9996565457')),
               const SizedBox(height: 20),
-              const Text('Password', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+              const Text('Password *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
               const SizedBox(height: 8),
               TextField(controller: _passwordController, obscureText: true, decoration: _inputDecoration('••••••••')),
               const SizedBox(height: 20),
-              const Text('Confirm Password', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
+              const Text('Confirm Password *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF444444))),
               const SizedBox(height: 8),
               TextField(controller: _confirmPasswordController, obscureText: true, decoration: _inputDecoration('••••••••')),
               const SizedBox(height: 32),

@@ -17,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
   
-  final TextEditingController _emailController = TextEditingController(text: 'john@assetflow.com');
+  final TextEditingController _emailController = TextEditingController(text: '');
   final TextEditingController _passwordController = TextEditingController();
 
   @override
@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Updated Google Sign-In Logic (v7 compatible)
+  
   Future<void> _loginWithGoogle() async {
     try {
       final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();

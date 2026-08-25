@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import jwt
 from datetime import datetime, timedelta
+import re
 
 app = FastAPI()
 
@@ -22,18 +23,19 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 def get_db_connection():
     conn = psycopg2.connect(
         host="localhost",
-        database="assetflow_db",
+        database="orgaflow_db",  # Updated to match your database name
         user="postgres",
         password="mehra",  
         cursor_factory=RealDictCursor
     )
     return conn
 
-# Pydantic Models
+# Pydantic Models with Validation
 class SignupRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
-    password: str
+    phone: str = Field(..., min_length=10, max_length=15)
+    password: str = Field(..., min_length=6)
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -49,6 +51,10 @@ def create_access_token(data: dict):
 
 @app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: SignupRequest):
+    # Additional server-side validation for phone number pattern
+    if not re.match(r'^\+?[0-9]{10,15}$', user.phone):
+        raise HTTPException(status_code=400, detail="Invalid phone number format")
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -60,6 +66,7 @@ def signup(user: SignupRequest):
         
         hashed_password = pwd_context.hash(user.password)
         
+        # Note: Ensure your users table has a 'phone' column if you want to store it
         cursor.execute(
             """
             INSERT INTO users (name, email, password_hash, role) 
@@ -76,6 +83,9 @@ def signup(user: SignupRequest):
             "user": new_user
         }
         
+    except HTTPException as he:
+        conn.rollback()
+        raise he
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,18 +99,15 @@ def login(credentials: LoginRequest):
     cursor = conn.cursor()
     
     try:
-        # Check if user exists
         cursor.execute("SELECT * FROM users WHERE email = %s", (credentials.email,))
         user = cursor.fetchone()
         
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Verify password
         if not pwd_context.verify(credentials.password, user['password_hash']):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Generate JWT Token
         access_token = create_access_token(data={"sub": user['email'], "role": user['role']})
         
         return {
