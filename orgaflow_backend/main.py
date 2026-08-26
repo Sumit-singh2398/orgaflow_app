@@ -25,7 +25,7 @@ def get_db_connection():
         host="localhost",
         database="orgaflow_db",  # Updated to match your database name
         user="postgres",
-        password="mehra",  
+        password="",  
         cursor_factory=RealDictCursor
     )
     return conn
