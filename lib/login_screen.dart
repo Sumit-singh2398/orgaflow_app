@@ -28,12 +28,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   
   Future<void> _initGoogleSignIn() async {
-    try {
-      await GoogleSignIn.instance.initialize();
-    } catch (e) {
-      print("Google Sign-In Initialization Error: $e");
-    }
+  try {
+    await GoogleSignIn.instance.initialize(
+      serverClientId: '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com',
+    );
+  } catch (e) {
+    print("Google Sign-In Initialization Error: $e");
   }
+}
 
   @override
   void dispose() {
