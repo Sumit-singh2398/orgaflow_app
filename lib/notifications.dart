@@ -13,7 +13,6 @@ class NotificationsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // TOP HEADER: Notifications Title & Mark all read
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -45,8 +44,6 @@ class NotificationsScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // NOTIFICATION CARDS LIST
               const _NotificationCard(
                 title: 'Asset Assigned',
                 message: 'Laptop AF-0012 has been assigned to you.',
@@ -86,9 +83,6 @@ class NotificationsScreen extends StatelessWidget {
   }
 }
 
-// =====================================================================
-// HELPER WIDGET: Individual Notification Card
-// =====================================================================
 class _NotificationCard extends StatelessWidget {
   final String title;
   final String message;
