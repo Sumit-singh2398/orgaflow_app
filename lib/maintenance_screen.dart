@@ -10,7 +10,7 @@ class MaintenanceScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TOP HEADER: Title aur Filter Icon
+    
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
@@ -33,7 +33,7 @@ class MaintenanceScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6),
 
-            // TABS SECTION: Pending, Approved, In Progress, Resolved
+      
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -65,9 +65,9 @@ class MaintenanceScreen extends StatelessWidget {
             // MAINTENANCE LIST CARDS
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal : 20),
                 children: [
-                  // 1st Card: Laptop AF-0012 (Pending with Approve/Reject buttons)
+                  
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -134,7 +134,7 @@ class MaintenanceScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // 2nd Card: Printer AF-0188 (Medium Priority with In Progress status)
+              
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -170,7 +170,7 @@ class MaintenanceScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 80), // Padding for Bottom Navigation Bar
+                  const SizedBox(height: 80), 
                 ],
               ),
             ),
