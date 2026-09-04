@@ -13,7 +13,7 @@ class MoreScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // HEADER: Title & Settings Icon
+            
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -29,7 +29,7 @@ class MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // USER PROFILE CARD
+              
               Row(
                 children: [
                   CircleAvatar(
@@ -55,7 +55,7 @@ class MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
 
-              // MENU ITEMS LIST
+        
               _buildMenuItem(Icons.inventory_2_outlined, 'My Assets', () {}),
               _buildMenuItem(Icons.swap_horiz, 'Transfer Requests', () {}),
               _buildMenuItem(Icons.assignment_turned_in_outlined, 'Audit', () {}),
