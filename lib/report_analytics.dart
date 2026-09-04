@@ -221,7 +221,7 @@ class ReportAnalyticsScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget to build vertical bar chart lines
+
   static Widget _buildBar(double height) {
     return Container(
       width: 26,
