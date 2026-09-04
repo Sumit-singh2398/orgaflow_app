@@ -15,23 +15,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // ============================================================
-  // STATE
-  // ============================================================
+  
 
   bool _rememberMe = false;
   bool _obscurePassword = true;
   bool _isLoading = false;
-
-  // false = Employee Portal
-  // true  = Management Portal
   bool _isManagement = false;
 
   String _selectedRole = 'ADMIN';
 
-  // ============================================================
-  // CONTROLLERS
-  // ============================================================
 
   final TextEditingController _emailController =
       TextEditingController();
@@ -39,9 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController =
       TextEditingController();
 
-  // ============================================================
-  // COLORS
-  // ============================================================
+  
 
   static const Color primaryColor = Color(0xFF3155D9);
   static const Color darkText = Color(0xFF172033);
@@ -49,9 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color borderColor = Color(0xFFE4E7EC);
   static const Color backgroundColor = Color(0xFFF7F8FC);
 
-  // ============================================================
-  // INIT
-  // ============================================================
+
 
   @override
   void initState() {
@@ -77,9 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // EMAIL LOGIN
-  // ============================================================
+
 
   Future<void> _loginUser() async {
     final email = _emailController.text.trim();
@@ -166,9 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ============================================================
-  // GOOGLE LOGIN
-  // ============================================================
+
 
   Future<void> _loginWithGoogle() async {
     try {
@@ -197,9 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ============================================================
-  // MESSAGE
-  // ============================================================
+  
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -213,10 +195,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -237,9 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // ==================================================
-                  // BRAND
-                  // ==================================================
+                 
 
                   Row(
                     children: [
@@ -293,9 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 38),
 
-                  // ==================================================
-                  // WELCOME TEXT
-                  // ==================================================
+                
 
                   Text(
                     _isManagement
@@ -324,9 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 28),
 
-                  // ==================================================
-                  // PORTAL SWITCHER
-                  // ==================================================
+               
 
                   Container(
                     padding: const EdgeInsets.all(5),
@@ -369,10 +341,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  // ==================================================
-                  // ROLE SELECTOR
-                  // ==================================================
-
+       
                   AnimatedSwitcher(
                     duration:
                         const Duration(milliseconds: 220),
@@ -387,9 +356,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 28),
 
-                  // ==================================================
-                  // EMAIL
-                  // ==================================================
+        
 
                   _fieldLabel('Email address'),
 
@@ -410,9 +377,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ==================================================
-                  // PASSWORD
-                  // ==================================================
 
                   _fieldLabel('Password'),
 
@@ -454,10 +418,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 13),
 
-                  // ==================================================
-                  // REMEMBER + FORGOT
-                  // ==================================================
-
+              
                   Row(
                     children: [
                       SizedBox(
@@ -508,9 +469,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 25),
 
-                  // ==================================================
-                  // SIGN IN BUTTON
-                  // ==================================================
+              
 
                   SizedBox(
                     width: double.infinity,
@@ -553,9 +512,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ==================================================
-                  // DIVIDER
-                  // ==================================================
+                  
 
                   Row(
                     children: [
@@ -594,9 +551,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ==================================================
-                  // GOOGLE BUTTON
-                  // ==================================================
+
 
                   SizedBox(
                     width: double.infinity,
@@ -660,10 +615,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 28),
 
-                  // ==================================================
-                  // SIGN UP
-                  // ==================================================
-
                   Center(
                     child: RichText(
                       text: TextSpan(
@@ -703,10 +654,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ==================================================
-                  // SECURITY NOTE
-                  // ==================================================
-
                   Center(
                     child: Row(
                       mainAxisSize:
@@ -738,10 +685,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // PORTAL BUTTON
-  // ============================================================
 
   Widget _portalButton({
     required String title,
@@ -803,10 +746,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // ROLE SELECTOR
-  // ============================================================
 
   Widget _roleSelector() {
     return Container(
@@ -912,10 +851,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ============================================================
-  // ROLE NAME
-  // ============================================================
-
   String _roleDisplayName(String role) {
     switch (role) {
       case 'ASSET_MANAGER':
@@ -930,10 +865,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ============================================================
-  // FIELD LABEL
-  // ============================================================
-
   Widget _fieldLabel(String text) {
     return Text(
       text,
@@ -944,10 +875,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // INPUT DECORATION
-  // ============================================================
 
   InputDecoration _inputDecoration({
     required String hint,
