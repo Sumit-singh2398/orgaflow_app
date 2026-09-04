@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-
-// =====================================================================
-// 1. ASSETS MAIN SCREEN - Search, Filter aur Assets ki List dikhane ke liye
-// =====================================================================
 class AssetsScreen extends StatelessWidget {
   const AssetsScreen({super.key});
 
@@ -14,7 +10,6 @@ class AssetsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER SECTION: Title aur Tune Icon
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
@@ -35,8 +30,6 @@ class AssetsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
-            // SEARCH BAR SECTION
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: TextField(
@@ -62,8 +55,6 @@ class AssetsScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            // FILTER DROPDOWNS SECTION
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
@@ -102,8 +93,6 @@ class AssetsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-
-            // ASSETS LIST CARDS SECTION
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -220,11 +209,6 @@ class AssetsScreen extends StatelessWidget {
     );
   }
 }
-
-
-// =====================================================================
-// 2. ASSET DETAIL SCREEN - Asset ki poori detail dikhane ke liye
-// =====================================================================
 class AssetDetailScreen extends StatelessWidget {
   const AssetDetailScreen({super.key});
 
@@ -237,7 +221,6 @@ class AssetDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // TOP APP BAR
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
@@ -268,7 +251,6 @@ class AssetDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ASSET IMAGE CONTAINER
                     Container(
                       height: 180,
                       width: double.infinity,
@@ -286,8 +268,6 @@ class AssetDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // TITLE & STATUS BADGE
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,8 +325,6 @@ class AssetDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-
-                    // DETAILS GRID SECTION
                     Row(
                       children: [
                         Expanded(child: _buildDetailCard('Category', 'Electronics')),
@@ -363,8 +341,6 @@ class AssetDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 24),
-
-                    // ACTION BUTTONS (Transfer, Return, Maintenance)
                     Row(
                       children: [
                         Expanded(
@@ -406,8 +382,6 @@ class AssetDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 28),
-
-                    // TABS SECTION
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
@@ -466,11 +440,6 @@ class AssetDetailScreen extends StatelessWidget {
     );
   }
 }
-
-
-// =====================================================================
-// 3. REGISTER ASSET SCREEN - Naya asset register karne ka form
-// =====================================================================
 class RegisterAssetScreen extends StatefulWidget {
   const RegisterAssetScreen({super.key});
 
@@ -653,11 +622,6 @@ class _RegisterAssetScreenState extends State<RegisterAssetScreen> {
     );
   }
 }
-
-
-// =====================================================================
-// 4. ALLOCATE ASSET SCREEN - Asset allocate karne ka form
-// =====================================================================
 class AllocateAssetScreen extends StatefulWidget {
   const AllocateAssetScreen({super.key});
 
@@ -821,11 +785,6 @@ class _AllocateAssetScreenState extends State<AllocateAssetScreen> {
     );
   }
 }
-
-
-// =====================================================================
-// 5. TRANSFER REQUESTS SCREEN - Pending, Approved, Rejected requests list
-// =====================================================================
 class TransferRequestsScreen extends StatelessWidget {
   const TransferRequestsScreen({super.key});
 
@@ -837,7 +796,6 @@ class TransferRequestsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TOP HEADER: Transfer Requests Title aur Filter Icon
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
@@ -859,8 +817,6 @@ class TransferRequestsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-
-            // TABS SECTION: Pending, Approved, Rejected, Completed
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -888,13 +844,10 @@ class TransferRequestsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // REQUESTS LIST CONTAINER SECTION
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
-                  // Pending Request Card with Approve and Reject Buttons
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -960,8 +913,6 @@ class TransferRequestsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Approved Request Card
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
