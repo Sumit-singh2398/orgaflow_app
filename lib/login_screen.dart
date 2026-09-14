@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../employee/employee_dashboard.dart';
-import '../management/admin/admin_dashboard.dart';
-import '../management/asset_manager/asset_manager_dashboard.dart';
-import '../management/department_head/department_head_dashboard.dart';
+import 'signup_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_conditions_screen.dart';
+
+import 'employee/employee_dashboard.dart';
+import 'management/admin/admin_dashboard.dart';
+import 'management/asset_manager/asset_manager_dashboard.dart';
+import 'management/department_head/department_head_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,13 +21,32 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _rememberMe = false;
-  bool _obscurePassword = true;
-  bool _isLoading = false;
+  // ============================================================
+  // CONFIGURATION
+  // ============================================================
 
-  // false = Employee Portal
-  // true = Management Portal
-  bool _isManagement = false;
+  // Physical Android phone + USB:
+  //
+  // adb reverse --remove-all
+  // adb reverse tcp:8000 tcp:8000
+  //
+  // Phone 127.0.0.1:8000 -> PC 127.0.0.1:8000
+  static const String baseUrl = 'http://127.0.0.1:8000';
+
+  static const String googleServerClientId =
+      '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com';
+
+  // ============================================================
+  // COLORS
+  // ============================================================
+
+  static const Color primaryColor = Color(0xFF3B5BDB);
+  static const Color backgroundColor = Color(0xFFEDEFF5);
+  static const Color secondaryText = Color(0xFF6B7280);
+
+  // ============================================================
+  // CONTROLLERS
+  // ============================================================
 
   final TextEditingController _emailController =
       TextEditingController();
@@ -31,43 +54,47 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController =
       TextEditingController();
 
-  static const Color primaryColor =
-      Color(0xFF3155D9);
+  // ============================================================
+  // STATE
+  // ============================================================
 
-  static const Color darkText =
-      Color(0xFF172033);
+  bool _isManagement = false;
+  bool _isLoading = false;
+  bool _obscurePassword = true;
 
-  static const Color secondaryText =
-      Color(0xFF6B7280);
+  String? _selectedManagementRole;
 
-  static const Color borderColor =
-      Color(0xFFE4E7EC);
+  // ============================================================
+  // GOOGLE
+  // ============================================================
 
-  static const Color backgroundColor =
-      Color(0xFFF7F8FC);
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
   @override
   void initState() {
     super.initState();
-    _initGoogleSignIn();
+    _initializeGoogle();
   }
 
-  // ============================================================
-  // GOOGLE INITIALIZATION
-  // ============================================================
-
-  Future<void> _initGoogleSignIn() async {
+  Future<void> _initializeGoogle() async {
     try {
-      await GoogleSignIn.instance.initialize(
-        serverClientId:
-            '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com',
+      await _googleSignIn.initialize(
+        serverClientId: googleServerClientId,
+      );
+
+      debugPrint(
+        'Google Sign-In initialized successfully',
       );
     } catch (e) {
       debugPrint(
-        'Google Sign-In Initialization Error: $e',
+        'Google initialization error: $e',
       );
     }
   }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
 
   @override
   void dispose() {
@@ -77,19 +104,104 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
+  // MESSAGE
+  // ============================================================
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .hideCurrentSnackBar();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ============================================================
+  // SIGN UP
+  // ============================================================
+
+  void _openSignup() {
+    if (_isLoading) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SignupScreen(),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PRIVACY POLICY
+  // ============================================================
+
+  void _openPrivacyPolicy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PrivacyPolicyScreen(),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TERMS & CONDITIONS
+  // ============================================================
+
+  void _openTermsConditions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const TermsConditionsScreen(),
+      ),
+    );
+  }
+
+  // ============================================================
+  // NORMALIZE ROLE
+  // ============================================================
+
+  String _normalizeRole(String role) {
+    return role
+        .trim()
+        .toUpperCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+  }
+
+  // ============================================================
   // EMAIL / PASSWORD LOGIN
   // ============================================================
 
-  Future<void> _loginUser() async {
-    final email =
-        _emailController.text.trim();
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
 
-    final password =
-        _passwordController.text;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    // ------------------------------------------------------------
+    // Validation
+    // ------------------------------------------------------------
+
+    if (email.isEmpty) {
+      _showMessage('Please enter your email.');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showMessage('Please enter your password.');
+      return;
+    }
+
+    if (_isManagement &&
+        _selectedManagementRole == null) {
       _showMessage(
-        'Please enter email and password.',
+        'Please select your management role.',
       );
       return;
     }
@@ -99,123 +211,493 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final url = Uri.parse(
-        'http://127.0.0.1:8000/api/auth/login',
-      );
+      // ----------------------------------------------------------
+      // Request
+      // ----------------------------------------------------------
 
-      // IMPORTANT:
-      // User only selects portal.
-      // User does NOT select role.
-      final body = {
+      final Map<String, dynamic> requestBody = {
         'email': email,
         'password': password,
+
+        // Backend uses this only to know which portal
+        // the user is trying to enter.
         'portal': _isManagement
             ? 'management'
             : 'employee',
       };
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      // Role is required only for management login.
+      //
+      // IMPORTANT:
+      // This does NOT grant the role.
+      // Backend must compare this with users.role.
+      if (_isManagement) {
+        requestBody['role'] =
+            _selectedManagementRole;
+      }
 
       debugPrint(
-        'Login Status: ${response.statusCode}',
+        'LOGIN REQUEST: ${jsonEncode(requestBody)}',
       );
+
+      final response = await http
+          .post(
+            Uri.parse(
+              '$baseUrl/api/auth/login',
+            ),
+            headers: const {
+              'Content-Type':
+                  'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 15),
+          );
 
       debugPrint(
-        'Login Response: ${response.body}',
+        'LOGIN RESPONSE: '
+        '${response.statusCode} '
+        '${response.body}',
       );
 
-      // ========================================================
-      // LOGIN SUCCESS
-      // ========================================================
+      dynamic data;
+
+      try {
+        data = jsonDecode(response.body);
+      } catch (_) {
+        data = {};
+      }
+
+      // ----------------------------------------------------------
+      // SUCCESS
+      // ----------------------------------------------------------
 
       if (response.statusCode == 200) {
-        final data =
-            jsonDecode(response.body);
+        final rawUser =
+            data is Map
+                ? (data['user'] ?? data)
+                : {};
 
-        final token =
-            data['access_token'];
-
-        final role =
-            data['role'];
-
-        debugPrint(
-          'Login successful',
-        );
-
-        debugPrint(
-          'Role from backend: $role',
-        );
-
-        debugPrint(
-          'Token received: ${token != null}',
-        );
-
-        if (role == null) {
+        if (rawUser is! Map) {
           _showMessage(
-            'Server did not return user role.',
+            'Invalid user data received from server.',
           );
           return;
         }
 
-        // Send complete backend user data
-        // to dashboard routing.
+        final userData =
+            Map<String, dynamic>.from(
+          rawUser,
+        );
+
+        final role = _normalizeRole(
+          (userData['role'] ??
+                  'EMPLOYEE')
+              .toString(),
+        );
+
+        debugPrint(
+          'LOGIN SUCCESS',
+        );
+        debugPrint(
+          'ACTUAL USER ROLE: $role',
+        );
+
+        if (!mounted) return;
+
         _openDashboardByRole(
-          role.toString(),
-          data,
+          role,
+          userData,
         );
 
         return;
       }
 
-      // ========================================================
-      // LOGIN FAILED
-      // ========================================================
+      // ----------------------------------------------------------
+      // BACKEND ERROR
+      // ----------------------------------------------------------
 
-      try {
-        final errorData =
-            jsonDecode(response.body);
+      final message =
+          _extractBackendMessage(
+        data,
+        response.statusCode,
+      );
 
+      _showMessage(message);
+    } on http.ClientException catch (e) {
+      debugPrint(
+        'HTTP CLIENT ERROR: $e',
+      );
+
+      _showMessage(
+        'Cannot connect to Orgaflow server. '
+        'Check FastAPI and adb reverse.',
+      );
+    } catch (e) {
+      debugPrint(
+        'LOGIN ERROR: $e',
+      );
+
+      final error = e.toString();
+
+      if (error.contains(
+            'Connection refused',
+          ) ||
+          error.contains(
+            'SocketException',
+          )) {
         _showMessage(
-          errorData['detail'] ??
-              'Invalid email or password.',
+          'Cannot connect to Orgaflow server. '
+          'Make sure FastAPI is running and '
+          'USB reverse is enabled.',
         );
-      } catch (_) {
+      } else if (error.contains(
+        'TimeoutException',
+      )) {
+        _showMessage(
+          'Server connection timed out. '
+          'Please try again.',
+        );
+      } else {
         _showMessage(
           'Login failed. Please try again.',
         );
       }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      debugPrint(
-        'Login Error: $e',
-      );
-
-      _showMessage(
-        'Unable to connect to server. '
-        'Please check your backend.',
-      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   // ============================================================
-  // ROLE BASED DASHBOARD ROUTING
+  // GOOGLE LOGIN
+  // ============================================================
+
+  Future<void> _googleLogin() async {
+    if (_isManagement &&
+        _selectedManagementRole == null) {
+      _showMessage(
+        'Please select your management role.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // ----------------------------------------------------------
+      // STEP 1: GOOGLE SIGN IN
+      // ----------------------------------------------------------
+
+      debugPrint(
+        'Starting Google Sign-In...',
+      );
+
+      final account =
+          await _googleSignIn.authenticate();
+
+      debugPrint(
+        'Google account selected: '
+        '${account.email}',
+      );
+
+      // ----------------------------------------------------------
+      // STEP 2: GET GOOGLE ID TOKEN
+      // ----------------------------------------------------------
+
+      final authentication =
+          account.authentication;
+
+      final idToken =
+          authentication.idToken;
+
+      if (idToken == null ||
+          idToken.isEmpty) {
+        debugPrint(
+          'Google ID token is null or empty.',
+        );
+
+        _showMessage(
+          'Google authentication token '
+          'was not received.',
+        );
+
+        return;
+      }
+
+      debugPrint(
+        'Google ID token received successfully.',
+      );
+
+      // ----------------------------------------------------------
+      // STEP 3: PREPARE FASTAPI REQUEST
+      // ----------------------------------------------------------
+
+      final Map<String, dynamic> requestBody = {
+        'id_token': idToken,
+
+        // Employee or Management
+        'portal': _isManagement
+            ? 'management'
+            : 'employee',
+      };
+
+      // For management:
+      //
+      // Backend must compare this selected role
+      // with users.role.
+      //
+      // Example:
+      // selected = ADMIN
+      // database = ADMIN
+      // -> allowed
+      //
+      // selected = ADMIN
+      // database = EMPLOYEE
+      // -> 403
+      if (_isManagement) {
+        requestBody['role'] =
+            _selectedManagementRole;
+      }
+
+      debugPrint(
+        'GOOGLE REQUEST PORTAL: '
+        '${requestBody['portal']}',
+      );
+
+      if (_isManagement) {
+        debugPrint(
+          'GOOGLE REQUEST ROLE: '
+          '${requestBody['role']}',
+        );
+      }
+
+      // ----------------------------------------------------------
+      // STEP 4: SEND TOKEN TO FASTAPI
+      // ----------------------------------------------------------
+
+      debugPrint(
+        'Sending Google token to FastAPI...',
+      );
+
+      final response = await http
+          .post(
+            Uri.parse(
+              '$baseUrl/api/auth/google-login',
+            ),
+            headers: const {
+              'Content-Type':
+                  'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 15),
+          );
+
+      debugPrint(
+        'GOOGLE BACKEND RESPONSE: '
+        '${response.statusCode} '
+        '${response.body}',
+      );
+
+      dynamic data;
+
+      try {
+        data = jsonDecode(response.body);
+      } catch (_) {
+        data = {};
+      }
+
+      // ----------------------------------------------------------
+      // SUCCESS
+      // ----------------------------------------------------------
+
+      if (response.statusCode == 200) {
+        final rawUser =
+            data is Map
+                ? (data['user'] ?? data)
+                : {};
+
+        if (rawUser is! Map) {
+          _showMessage(
+            'Invalid user data received '
+            'from server.',
+          );
+          return;
+        }
+
+        final userData =
+            Map<String, dynamic>.from(
+          rawUser,
+        );
+
+        // IMPORTANT:
+        // Role comes from backend/database.
+        final role = _normalizeRole(
+          (userData['role'] ??
+                  'EMPLOYEE')
+              .toString(),
+        );
+
+        debugPrint(
+          'GOOGLE LOGIN SUCCESS',
+        );
+
+        debugPrint(
+          'ACTUAL DATABASE ROLE: $role',
+        );
+
+        if (!mounted) return;
+
+        _openDashboardByRole(
+          role,
+          userData,
+        );
+
+        return;
+      }
+
+      // ----------------------------------------------------------
+      // BACKEND ERROR
+      // ----------------------------------------------------------
+
+      final message =
+          _extractBackendMessage(
+        data,
+        response.statusCode,
+      );
+
+      debugPrint(
+        'GOOGLE BACKEND ERROR: $message',
+      );
+
+      _showMessage(message);
+    } on http.ClientException catch (e) {
+      debugPrint(
+        'GOOGLE HTTP CLIENT ERROR: $e',
+      );
+
+      _showMessage(
+        'Google login succeeded, but '
+        'Orgaflow server could not be reached.',
+      );
+    } catch (e) {
+      debugPrint(
+        'GOOGLE LOGIN ERROR: $e',
+      );
+
+      final error = e.toString();
+
+      if (error.contains(
+            'Connection refused',
+          ) ||
+          error.contains(
+            'SocketException',
+          )) {
+        _showMessage(
+          'Google login succeeded, but '
+          'Orgaflow server could not be reached.',
+        );
+      } else if (error.contains(
+            'canceled',
+          ) ||
+          error.contains(
+            'cancelled',
+          )) {
+        _showMessage(
+          'Google sign-in was cancelled.',
+        );
+      } else {
+        _showMessage(
+          'Google login failed. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // BACKEND MESSAGE
+  // ============================================================
+
+  String _extractBackendMessage(
+    dynamic data,
+    int statusCode,
+  ) {
+    if (data is Map) {
+      final detail = data['detail'];
+
+      if (detail != null) {
+        if (detail is String &&
+            detail.trim().isNotEmpty) {
+          return detail;
+        }
+
+        if (detail is Map) {
+          return detail.toString();
+        }
+
+        if (detail is List) {
+          return detail
+              .map(
+                (e) => e.toString(),
+              )
+              .join(', ');
+        }
+      }
+
+      final message = data['message'];
+
+      if (message != null &&
+          message.toString().trim().isNotEmpty) {
+        return message.toString();
+      }
+
+      final error = data['error'];
+
+      if (error != null &&
+          error.toString().trim().isNotEmpty) {
+        return error.toString();
+      }
+    }
+
+    switch (statusCode) {
+      case 400:
+        return 'Invalid request.';
+
+      case 401:
+        return 'Authentication failed.';
+
+      case 403:
+        return 'You are not authorized for this portal or role.';
+
+      case 404:
+        return 'Orgaflow authentication endpoint not found.';
+
+      case 500:
+        return 'Orgaflow server error. Check FastAPI logs.';
+
+      default:
+        return 'Request failed. HTTP $statusCode';
+    }
+  }
+
+  // ============================================================
+  // DASHBOARD ROUTING
   // ============================================================
 
   void _openDashboardByRole(
@@ -223,286 +705,266 @@ class _LoginScreenState extends State<LoginScreen> {
     Map<String, dynamic> userData,
   ) {
     final normalizedRole =
-        role.trim().toLowerCase();
+        _normalizeRole(role);
 
     debugPrint(
       'Opening dashboard for role: '
       '$normalizedRole',
     );
 
-    // ==========================================================
-    // ADMIN
-    // ==========================================================
+    Widget destination;
 
-    if (normalizedRole == 'admin') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const AdminDashboard(),
-        ),
-      );
+    switch (normalizedRole) {
+      case 'ADMIN':
+        destination =
+            const AdminDashboard();
+        break;
 
-      return;
+      case 'ASSET_MANAGER':
+        destination =
+            const AssetManagerDashboard();
+        break;
+
+      case 'DEPARTMENT_HEAD':
+        destination =
+            const DepartmentHeadDashboard();
+        break;
+
+      case 'EMPLOYEE':
+      default:
+        destination =
+            EmployeeDashboard(
+          isNewUser: false,
+          userData: userData,
+        );
+        break;
     }
 
-    // ==========================================================
-    // ASSET MANAGER
-    // ==========================================================
-
-    if (normalizedRole ==
-        'asset manager') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const AssetManagerDashboard(),
-        ),
-      );
-
-      return;
-    }
-
-    // ==========================================================
-    // DEPARTMENT HEAD
-    // ==========================================================
-
-    if (normalizedRole ==
-        'department head') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              const DepartmentHeadDashboard(),
-        ),
-      );
-
-      return;
-    }
-
-    // ==========================================================
-    // EMPLOYEE
-    // ==========================================================
-
-    if (normalizedRole == 'employee') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              EmployeeDashboard(
-            // Existing employee login
-            isNewUser: false,
-
-            // Existing employee's actual data
-            userData: userData,
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    // ==========================================================
-    // UNKNOWN ROLE
-    // ==========================================================
-
-    _showMessage(
-      'Unknown user role: $role',
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => destination,
+      ),
+      (route) => false,
     );
   }
 
   // ============================================================
-  // GOOGLE LOGIN
+  // PORTAL TOGGLE
   // ============================================================
 
-  Future<void> _loginWithGoogle() async {
-    if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // ========================================================
-      // GOOGLE AUTHENTICATION
-      // ========================================================
-
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      final idToken =
-          googleAuth.idToken;
-
-      debugPrint(
-        'Google Email: ${googleUser.email}',
-      );
-
-      debugPrint(
-        'Google Name: ${googleUser.displayName}',
-      );
-
-      debugPrint(
-        'Google ID Token available: '
-        '${idToken != null}',
-      );
-
-      if (idToken == null) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-
-          _showMessage(
-            'Google authentication token '
-            'not received.',
-          );
-        }
-
-        return;
-      }
-
-      // ========================================================
-      // SEND GOOGLE TOKEN TO FASTAPI
-      // ========================================================
-
-      final url = Uri.parse(
-        'http://127.0.0.1:8000/api/auth/google-login',
-      );
-
-      final body = {
-        'id_token': idToken,
-        'portal': _isManagement
-            ? 'management'
-            : 'employee',
-      };
-
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      debugPrint(
-        'Google Backend Status: '
-        '${response.statusCode}',
-      );
-
-      debugPrint(
-        'Google Backend Response: '
-        '${response.body}',
-      );
-
-      // ========================================================
-      // GOOGLE LOGIN SUCCESS
-      // ========================================================
-
-      if (response.statusCode == 200) {
-        final data =
-            jsonDecode(response.body);
-
-        final token =
-            data['access_token'];
-
-        final role =
-            data['role'];
-
-        debugPrint(
-          'Google login successful.',
-        );
-
-        debugPrint(
-          'Role from backend: $role',
-        );
-
-        debugPrint(
-          'Token received: ${token != null}',
-        );
-
-        if (role == null) {
-          _showMessage(
-            'Server did not return user role.',
-          );
-          return;
-        }
-
-        // ======================================================
-        // GOOGLE EMPLOYEE
-        //
-        // This is an EXISTING authenticated account.
-        // Therefore isNewUser = false.
-        // ======================================================
-
-        _openDashboardByRole(
-          role.toString(),
-          data,
-        );
-
-        return;
-      }
-
-      // ========================================================
-      // GOOGLE LOGIN FAILED
-      // ========================================================
-
-      try {
-        final errorData =
-            jsonDecode(response.body);
-
-        _showMessage(
-          errorData['detail'] ??
-              'Google login failed.',
-        );
-      } catch (_) {
-        _showMessage(
-          'Google login failed.',
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      debugPrint(
-        'Google Sign-In Error: $e',
-      );
-
-      _showMessage(
-        'Google Sign-In failed. '
-        'Please try again.',
-      );
-    }
+  Widget _buildPortalToggle() {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _isManagement = false;
+                        _selectedManagementRole =
+                            null;
+                      });
+                    },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: !_isManagement
+                      ? primaryColor
+                      : Colors.transparent,
+                  borderRadius:
+                      BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Employee',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        FontWeight.w700,
+                    color: !_isManagement
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: _isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _isManagement = true;
+                      });
+                    },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _isManagement
+                      ? primaryColor
+                      : Colors.transparent,
+                  borderRadius:
+                      BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Management',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        FontWeight.w700,
+                    color: _isManagement
+                        ? Colors.white
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ============================================================
-  // MESSAGE
+  // TEXT FIELD
   // ============================================================
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior:
-            SnackBarBehavior.floating,
-        margin:
-            const EdgeInsets.all(16),
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(12),
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool obscureText = false,
+    Widget? suffixIcon,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType:
+          hint == 'Email'
+              ? TextInputType.emailAddress
+              : TextInputType.text,
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(
+          icon,
+          color: primaryColor,
         ),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius:
+              BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder:
+            OutlineInputBorder(
+          borderRadius:
+              BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder:
+            OutlineInputBorder(
+          borderRadius:
+              BorderRadius.circular(14),
+          borderSide:
+              const BorderSide(
+            color: primaryColor,
+            width: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // MANAGEMENT ROLE DROPDOWN
+  // ============================================================
+
+  Widget _buildManagementRoleDropdown() {
+    if (!_isManagement) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding:
+          const EdgeInsets.only(top: 14),
+      child:
+          DropdownButtonFormField<String>(
+        initialValue:
+            _selectedManagementRole,
+        decoration: InputDecoration(
+          hintText:
+              'Select Management Role',
+          prefixIcon:
+              const Icon(
+            Icons
+                .admin_panel_settings_outlined,
+            color: primaryColor,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding:
+              const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 15,
+          ),
+          border: OutlineInputBorder(
+            borderRadius:
+                BorderRadius.circular(14),
+            borderSide:
+                BorderSide.none,
+          ),
+          enabledBorder:
+              OutlineInputBorder(
+            borderRadius:
+                BorderRadius.circular(14),
+            borderSide:
+                BorderSide.none,
+          ),
+        ),
+        items: const [
+          DropdownMenuItem(
+            value: 'ADMIN',
+            child: Text('Admin'),
+          ),
+          DropdownMenuItem(
+            value: 'ASSET_MANAGER',
+            child:
+                Text('Asset Manager'),
+          ),
+          DropdownMenuItem(
+            value: 'DEPARTMENT_HEAD',
+            child:
+                Text('Department Head'),
+          ),
+        ],
+        onChanged: _isLoading
+            ? null
+            : (value) {
+                setState(() {
+                  _selectedManagementRole =
+                      value;
+                });
+              },
       ),
     );
   }
@@ -516,148 +978,78 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor:
           backgroundColor,
-
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
+          child:
+              SingleChildScrollView(
             padding:
                 const EdgeInsets.symmetric(
-              horizontal: 22,
+              horizontal: 24,
               vertical: 28,
             ),
-
             child: ConstrainedBox(
               constraints:
                   const BoxConstraints(
-                maxWidth: 470,
+                maxWidth: 430,
               ),
-
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-
                 children: [
-
-                  // ==================================================
-                  // BRAND
-                  // ==================================================
-
-                  Row(
-                    children: [
-
-                      Container(
-                        width: 46,
-                        height: 46,
-
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              primaryColor,
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            13,
-                          ),
-                        ),
-
-                        child:
-                            const Center(
-                          child: Text(
-                            'O',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.white,
-                              fontSize: 26,
-                              fontWeight:
-                                  FontWeight
-                                      .w800,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(
-                        width: 12,
-                      ),
-
-                      const Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-
-                          Text(
-                            'ORGAFLOW',
-                            style:
-                                TextStyle(
-                              fontSize: 18,
-                              fontWeight:
-                                  FontWeight
-                                      .w800,
-                              letterSpacing:
-                                  1.2,
-                              color:
-                                  darkText,
-                            ),
-                          ),
-
-                          SizedBox(
-                            height: 2,
-                          ),
-
-                          Text(
-                            'Asset & Resource Management',
-                            style:
-                                TextStyle(
-                              fontSize: 11,
-                              color:
-                                  secondaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-
                   const SizedBox(
-                    height: 38,
+                    height: 10,
                   ),
 
-                  // ==================================================
-                  // WELCOME
-                  // ==================================================
+                  // ------------------------------------------------
+                  // LOGO
+                  // ------------------------------------------------
 
-                  Text(
-                    _isManagement
-                        ? 'Welcome to Management'
-                        : 'Welcome back',
-
-                    style:
-                        const TextStyle(
-                      fontSize: 30,
-                      fontWeight:
-                          FontWeight.w800,
-                      color: darkText,
-                      height: 1.15,
+                  Container(
+                    width: 78,
+                    height: 78,
+                    decoration:
+                        BoxDecoration(
+                      color: primaryColor,
+                      borderRadius:
+                          BorderRadius.circular(
+                        22,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons
+                          .business_center_rounded,
+                      size: 42,
+                      color: Colors.white,
                     ),
                   ),
 
                   const SizedBox(
-                    height: 9,
+                    height: 18,
                   ),
 
-                  Text(
-                    _isManagement
-                        ? 'Sign in to manage your organization, assets and resources.'
-                        : 'Sign in to view your assigned assets and organization resources.',
+                  // ------------------------------------------------
+                  // TITLE
+                  // ------------------------------------------------
 
-                    style:
-                        const TextStyle(
-                      fontSize: 14.5,
-                      color:
-                          secondaryText,
-                      height: 1.5,
+                  const Text(
+                    'Welcome to Orgaflow',
+                    style: TextStyle(
+                      fontSize: 27,
+                      fontWeight:
+                          FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 7,
+                  ),
+
+                  const Text(
+                    'Manage your organization with ease',
+                    textAlign:
+                        TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: secondaryText,
                     ),
                   ),
 
@@ -665,74 +1057,275 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 28,
                   ),
 
-                  // ==================================================
-                  // PORTAL SWITCHER
-                  // ==================================================
+                  // ------------------------------------------------
+                  // PORTAL
+                  // ------------------------------------------------
 
-                  Container(
-                    padding:
-                        const EdgeInsets
-                            .all(5),
+                  _buildPortalToggle(),
 
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          const Color(
-                        0xFFECEFF6,
-                      ),
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        15,
+                  const SizedBox(
+                    height: 20,
+                  ),
+
+                  // ------------------------------------------------
+                  // EMAIL
+                  // ------------------------------------------------
+
+                  _buildTextField(
+                    controller:
+                        _emailController,
+                    hint: 'Email',
+                    icon:
+                        Icons.email_outlined,
+                  ),
+
+                  const SizedBox(
+                    height: 14,
+                  ),
+
+                  // ------------------------------------------------
+                  // PASSWORD
+                  // ------------------------------------------------
+
+                  _buildTextField(
+                    controller:
+                        _passwordController,
+                    hint: 'Password',
+                    icon:
+                        Icons.lock_outline,
+                    obscureText:
+                        _obscurePassword,
+                    suffixIcon:
+                        IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword =
+                              !_obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons
+                                .visibility_off_outlined
+                            : Icons
+                                .visibility_outlined,
+                        color:
+                            secondaryText,
                       ),
                     ),
+                  ),
 
-                    child: Row(
-                      children: [
+                  // ------------------------------------------------
+                  // MANAGEMENT ROLE
+                  // ------------------------------------------------
 
-                        Expanded(
-                          child:
-                              _portalButton(
-                            title:
-                                'Employee',
+                  _buildManagementRoleDropdown(),
 
-                            icon: Icons
-                                .person_outline_rounded,
+                  const SizedBox(
+                    height: 20,
+                  ),
 
-                            selected:
-                                !_isManagement,
+                  // ------------------------------------------------
+                  // LOGIN
+                  // ------------------------------------------------
 
-                            onTap: () {
-                              setState(() {
-                                _isManagement =
-                                    false;
-                              });
-                            },
+                  SizedBox(
+                    width:
+                        double.infinity,
+                    height: 52,
+                    child:
+                        ElevatedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : _login,
+                      style:
+                          ElevatedButton
+                              .styleFrom(
+                        backgroundColor:
+                            primaryColor,
+                        foregroundColor:
+                            Colors.white,
+                        disabledBackgroundColor:
+                            primaryColor
+                                .withValues(
+                          alpha: 0.5,
+                        ),
+                        elevation: 0,
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            14,
                           ),
                         ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth:
+                                    2.5,
+                                color:
+                                    Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style:
+                                  TextStyle(
+                                fontSize: 16,
+                                fontWeight:
+                                    FontWeight
+                                        .w700,
+                              ),
+                            ),
+                    ),
+                  ),
 
-                        const SizedBox(
-                          width: 4,
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  // ------------------------------------------------
+                  // OR
+                  // ------------------------------------------------
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: Colors
+                              .grey
+                              .shade300,
                         ),
+                      ),
+                      const Padding(
+                        padding:
+                            EdgeInsets
+                                .symmetric(
+                          horizontal: 12,
+                        ),
+                        child: Text(
+                          'OR',
+                          style:
+                              TextStyle(
+                            fontSize: 12,
+                            color:
+                                secondaryText,
+                            fontWeight:
+                                FontWeight
+                                    .w600,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: Colors
+                              .grey
+                              .shade300,
+                        ),
+                      ),
+                    ],
+                  ),
 
-                        Expanded(
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  // ------------------------------------------------
+                  // GOOGLE
+                  // ------------------------------------------------
+
+                  SizedBox(
+                    width:
+                        double.infinity,
+                    height: 52,
+                    child:
+                        OutlinedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : _googleLogin,
+                      icon: const Icon(
+                        Icons
+                            .g_mobiledata_rounded,
+                        size: 30,
+                      ),
+                      label: const Text(
+                        'Continue with Google',
+                        style:
+                            TextStyle(
+                          fontSize: 15,
+                          fontWeight:
+                              FontWeight
+                                  .w600,
+                        ),
+                      ),
+                      style:
+                          OutlinedButton
+                              .styleFrom(
+                        foregroundColor:
+                            Colors.black87,
+                        backgroundColor:
+                            Colors.white,
+                        side: BorderSide(
+                          color: Colors
+                              .grey
+                              .shade300,
+                        ),
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 22,
+                  ),
+
+                  // ------------------------------------------------
+                  // SIGN UP
+                  // ------------------------------------------------
+
+                  Center(
+                    child: Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment
+                              .center,
+                      children: [
+                        const Text(
+                          "Don't have an account? ",
+                          style:
+                              TextStyle(
+                            fontSize: 13.5,
+                            color:
+                                secondaryText,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _isLoading
+                              ? null
+                              : _openSignup,
                           child:
-                              _portalButton(
-                            title:
-                                'Management',
-
-                            icon: Icons
-                                .admin_panel_settings_outlined,
-
-                            selected:
-                                _isManagement,
-
-                            onTap: () {
-                              setState(() {
-                                _isManagement =
-                                    true;
-                              });
-                            },
+                              const Text(
+                            'Sign Up',
+                            style:
+                                TextStyle(
+                              fontSize: 13.5,
+                              fontWeight:
+                                  FontWeight
+                                      .w700,
+                              color:
+                                  primaryColor,
+                            ),
                           ),
                         ),
                       ],
@@ -740,178 +1333,60 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
 
                   const SizedBox(
-                    height: 28,
+                    height: 16,
                   ),
 
-                  // ==================================================
-                  // EMAIL
-                  // ==================================================
+                  // ------------------------------------------------
+                  // PRIVACY + TERMS
+                  // ------------------------------------------------
 
-                  _fieldLabel(
-                    'Email address',
-                  ),
-
-                  const SizedBox(
-                    height: 8,
-                  ),
-
-                  TextField(
-                    controller:
-                        _emailController,
-
-                    keyboardType:
-                        TextInputType
-                            .emailAddress,
-
-                    textInputAction:
-                        TextInputAction
-                            .next,
-
-                    decoration:
-                        _inputDecoration(
-                      hint:
-                          'you@company.com',
-                      icon: Icons
-                          .mail_outline_rounded,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  // ==================================================
-                  // PASSWORD
-                  // ==================================================
-
-                  _fieldLabel(
-                    'Password',
-                  ),
-
-                  const SizedBox(
-                    height: 8,
-                  ),
-
-                  TextField(
-                    controller:
-                        _passwordController,
-
-                    obscureText:
-                        _obscurePassword,
-
-                    textInputAction:
-                        TextInputAction
-                            .done,
-
-                    onSubmitted: (_) {
-                      if (!_isLoading) {
-                        _loginUser();
-                      }
-                    },
-
-                    decoration:
-                        _inputDecoration(
-                      hint:
-                          'Enter your password',
-                      icon: Icons
-                          .lock_outline_rounded,
-                    ).copyWith(
-                      suffixIcon:
-                          IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword =
-                                !_obscurePassword;
-                          });
-                        },
-
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons
-                                  .visibility_outlined
-                              : Icons
-                                  .visibility_off_outlined,
-
-                          color:
-                              const Color(
-                            0xFF8A91A1,
-                          ),
-
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 13,
-                  ),
-
-                  // ==================================================
-                  // REMEMBER + FORGOT
-                  // ==================================================
-
-                  Row(
+                  Wrap(
+                    alignment:
+                        WrapAlignment
+                            .center,
                     children: [
-
-                      SizedBox(
-                        width: 22,
-                        height: 22,
-
-                        child: Checkbox(
-                          value:
-                              _rememberMe,
-
-                          activeColor:
-                              primaryColor,
-
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              5,
-                            ),
-                          ),
-
-                          onChanged:
-                              (value) {
-                            setState(() {
-                              _rememberMe =
-                                  value ??
-                                      false;
-                            });
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(
-                        width: 8,
-                      ),
-
-                      const Text(
-                        'Remember me',
-
-                        style:
-                            TextStyle(
-                          fontSize: 13,
-                          color:
-                              secondaryText,
-                        ),
-                      ),
-
-                      const Spacer(),
-
                       GestureDetector(
-                        onTap: () {},
-
+                        onTap:
+                            _openPrivacyPolicy,
                         child:
                             const Text(
-                          'Forgot password?',
-
+                          'Privacy Policy',
                           style:
                               TextStyle(
-                            fontSize: 13,
+                            fontSize: 12.5,
+                            fontWeight:
+                                FontWeight
+                                    .w600,
+                            color:
+                                primaryColor,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding:
+                            EdgeInsets
+                                .symmetric(
+                          horizontal: 8,
+                        ),
+                        child: Text(
+                          '•',
+                          style:
+                              TextStyle(
+                            color:
+                                secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap:
+                            _openTermsConditions,
+                        child:
+                            const Text(
+                          'Terms & Conditions',
+                          style:
+                              TextStyle(
+                            fontSize: 12.5,
                             fontWeight:
                                 FontWeight
                                     .w600,
@@ -924,484 +1399,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
 
                   const SizedBox(
-                    height: 25,
+                    height: 12,
                   ),
 
-                  // ==================================================
-                  // SIGN IN BUTTON
-                  // ==================================================
-
-                  SizedBox(
-                    width:
-                        double.infinity,
-                    height: 54,
-
-                    child:
-                        ElevatedButton(
-                      onPressed:
-                          _isLoading
-                              ? null
-                              : _loginUser,
-
-                      style:
-                          ElevatedButton
-                              .styleFrom(
-                        backgroundColor:
-                            primaryColor,
-
-                        disabledBackgroundColor:
-                            const Color(
-                          0xFF9AA9E7,
-                        ),
-
-                        elevation: 0,
-
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            13,
-                          ),
-                        ),
-                      ),
-
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 21,
-                              height: 21,
-
-                              child:
-                                  CircularProgressIndicator(
-                                strokeWidth:
-                                    2.2,
-                                color:
-                                    Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Sign In',
-
-                              style:
-                                  TextStyle(
-                                fontSize:
-                                    15.5,
-                                fontWeight:
-                                    FontWeight
-                                        .w700,
-                                color:
-                                    Colors.white,
-                              ),
-                            ),
+                  const Text(
+                    '© 2026 Orgaflow',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: secondaryText,
                     ),
                   ),
 
                   const SizedBox(
-                    height: 20,
-                  ),
-
-                  // ==================================================
-                  // OR DIVIDER
-                  // ==================================================
-
-                  Row(
-                    children: [
-
-                      const Expanded(
-                        child: Divider(
-                          color:
-                              borderColor,
-                          thickness: 1,
-                        ),
-                      ),
-
-                      Padding(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 14,
-                        ),
-
-                        child: Text(
-                          'OR',
-
-                          style:
-                              TextStyle(
-                            fontSize: 11,
-                            fontWeight:
-                                FontWeight
-                                    .w600,
-                            color: Colors
-                                .grey
-                                .shade500,
-                          ),
-                        ),
-                      ),
-
-                      const Expanded(
-                        child: Divider(
-                          color:
-                              borderColor,
-                          thickness: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  // ==================================================
-                  // GOOGLE LOGIN
-                  // ==================================================
-
-                  SizedBox(
-                    width:
-                        double.infinity,
-                    height: 52,
-
-                    child:
-                        OutlinedButton(
-                      onPressed:
-                          _isLoading
-                              ? null
-                              : _loginWithGoogle,
-
-                      style:
-                          OutlinedButton
-                              .styleFrom(
-                        backgroundColor:
-                            Colors.white,
-
-                        side:
-                            const BorderSide(
-                          color:
-                              borderColor,
-                        ),
-
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            13,
-                          ),
-                        ),
-                      ),
-
-                      child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment
-                                .center,
-
-                        children: [
-
-                          Container(
-                            width: 25,
-                            height: 25,
-
-                            decoration:
-                                const BoxDecoration(
-                              shape:
-                                  BoxShape
-                                      .circle,
-                              color:
-                                  Color(
-                                0xFFF1F3F4,
-                              ),
-                            ),
-
-                            child:
-                                const Center(
-                              child: Text(
-                                'G',
-
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      15,
-                                  fontWeight:
-                                      FontWeight
-                                          .w700,
-                                  color:
-                                      Color(
-                                    0xFF4285F4,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(
-                            width: 10,
-                          ),
-
-                          const Text(
-                            'Continue with Google',
-
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  14.5,
-                              fontWeight:
-                                  FontWeight
-                                      .w600,
-                              color:
-                                  darkText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 28,
-                  ),
-
-                  // ==================================================
-                  // SECURITY
-                  // ==================================================
-
-                  Center(
-                    child: Row(
-                      mainAxisSize:
-                          MainAxisSize.min,
-
-                      children: const [
-
-                        Icon(
-                          Icons
-                              .verified_user_outlined,
-                          size: 14,
-                          color:
-                              Color(
-                            0xFF7C8495,
-                          ),
-                        ),
-
-                        SizedBox(
-                          width: 5,
-                        ),
-
-                        Text(
-                          'Secure organization access',
-
-                          style:
-                              TextStyle(
-                            fontSize: 11,
-                            color:
-                                Color(
-                              0xFF7C8495,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    height: 8,
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // PORTAL BUTTON
-  // ============================================================
-
-  Widget _portalButton({
-    required String title,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-
-      child: AnimatedContainer(
-        duration:
-            const Duration(
-          milliseconds: 180,
-        ),
-
-        padding:
-            const EdgeInsets.symmetric(
-          vertical: 13,
-        ),
-
-        decoration:
-            BoxDecoration(
-          color: selected
-              ? Colors.white
-              : Colors.transparent,
-
-          borderRadius:
-              BorderRadius.circular(
-            11,
-          ),
-
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Colors.black
-                        .withOpacity(
-                      0.04,
-                    ),
-                    blurRadius: 7,
-                    offset:
-                        const Offset(
-                      0,
-                      2,
-                    ),
-                  ),
-                ]
-              : null,
-        ),
-
-        child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-
-          children: [
-
-            Icon(
-              icon,
-
-              size: 19,
-
-              color: selected
-                  ? primaryColor
-                  : const Color(
-                      0xFF7A8190,
-                    ),
-            ),
-
-            const SizedBox(
-              width: 7,
-            ),
-
-            Text(
-              title,
-
-              style: TextStyle(
-                fontSize: 13.5,
-
-                fontWeight: selected
-                    ? FontWeight.w700
-                    : FontWeight.w500,
-
-                color: selected
-                    ? primaryColor
-                    : const Color(
-                        0xFF626978,
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // FIELD LABEL
-  // ============================================================
-
-  Widget _fieldLabel(String text) {
-    return Text(
-      text,
-
-      style: const TextStyle(
-        fontSize: 13.5,
-        fontWeight:
-            FontWeight.w600,
-        color: darkText,
-      ),
-    );
-  }
-
-  // ============================================================
-  // INPUT DECORATION
-  // ============================================================
-
-  InputDecoration _inputDecoration({
-    required String hint,
-    required IconData icon,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-
-      hintStyle:
-          const TextStyle(
-        fontSize: 14,
-        color:
-            Color(0xFFA0A6B2),
-      ),
-
-      prefixIcon: Icon(
-        icon,
-        size: 20,
-        color:
-            const Color(
-          0xFF858C9B,
-        ),
-      ),
-
-      filled: true,
-
-      fillColor:
-          Colors.white,
-
-      contentPadding:
-          const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 16,
-      ),
-
-      border:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          13,
-        ),
-
-        borderSide:
-            const BorderSide(
-          color:
-              borderColor,
-        ),
-      ),
-
-      enabledBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          13,
-        ),
-
-        borderSide:
-            const BorderSide(
-          color:
-              borderColor,
-        ),
-      ),
-
-      focusedBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          13,
-        ),
-
-        borderSide:
-            const BorderSide(
-          color:
-              primaryColor,
-          width: 1.4,
         ),
       ),
     );
