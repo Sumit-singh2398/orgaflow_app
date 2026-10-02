@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-
 import 'employee_my_assets_page.dart';
 import 'employee_assets_page.dart';
-import 'employee_requests_page.dart';
+import 'employee_request.dart';
 import 'employee_profile_page.dart';
 import 'my_request.dart';
 
@@ -19,49 +18,62 @@ class ExistingEmployeeHome extends StatefulWidget {
       _ExistingEmployeeHomeState();
 }
 
-class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
+class _ExistingEmployeeHomeState
+    extends State<ExistingEmployeeHome> {
   int _currentIndex = 0;
 
-  static const Color primaryColor = Color(0xFF3157D5);
-  static const Color darkColor = Color(0xFF172033);
-  static const Color greyColor = Color(0xFF6B7280);
-  static const Color backgroundColor = Color(0xFFF6F8FC);
+  static const Color primaryColor =
+      Color(0xFF3157D5);
+
+  static const Color darkColor =
+      Color(0xFF172033);
+
+  static const Color greyColor =
+      Color(0xFF6B7280);
+
+  static const Color backgroundColor =
+      Color(0xFFF6F8FC);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: _currentIndex == 0
-          ? _buildHomePage()
-          : _buildSelectedPage(),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+
+      body: _getCurrentPage(),
+
+      bottomNavigationBar:
+          _buildBottomNavigationBar(),
     );
   }
 
   // ============================================================
-  // SELECTED PAGE
+  // CURRENT PAGE
   // ============================================================
 
-  Widget _buildSelectedPage() {
-    switch (_currentIndex) {
-      case 1:
-        return EmployeeAssetsPage(
-          userData: widget.userData,
-        );
-
-      case 2:
-        return EmployeeRequestsPage(
-          userData: widget.userData,
-        );
-
-      case 3:
-        return EmployeeProfilePage(
-          userData: widget.userData,
-        );
-
-      default:
-        return const SizedBox();
+  Widget _getCurrentPage() {
+    if (_currentIndex == 0) {
+      return _buildHomePage();
     }
+
+    if (_currentIndex == 1) {
+      return EmployeeAssetsPage(
+        userData: widget.userData,
+      );
+    }
+
+    if (_currentIndex == 2) {
+      return EmployeeRequestsPage(
+        userData: widget.userData,
+      );
+    }
+
+    if (_currentIndex == 3) {
+      return EmployeeProfilePage(
+        userData: widget.userData,
+      );
+    }
+
+    return _buildHomePage();
   }
 
   // ============================================================
@@ -70,14 +82,30 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
   Widget _buildHomePage() {
     final String name =
-        widget.userData?['name']?.toString() ?? 'Employee';
+        widget.userData?['name']
+                    ?.toString()
+                    .trim()
+                    .isNotEmpty ==
+                true
+            ? widget.userData!['name'].toString()
+            : 'Employee';
 
     return SafeArea(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+        physics:
+            const BouncingScrollPhysics(),
+
+        padding: const EdgeInsets.fromLTRB(
+          20,
+          18,
+          20,
+          28,
+        ),
+
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+
           children: [
             _buildHeader(name),
 
@@ -130,20 +158,26 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
   Widget _buildHeader(String name) {
     final String firstLetter =
-        name.isNotEmpty ? name[0].toUpperCase() : 'E';
+        name.isNotEmpty
+            ? name[0].toUpperCase()
+            : 'E';
 
     return Row(
       children: [
         Container(
           height: 48,
           width: 48,
+
           decoration: BoxDecoration(
             color: primaryColor,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius:
+                BorderRadius.circular(14),
           ),
+
           child: Center(
             child: Text(
               firstLetter,
+
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 19,
@@ -157,19 +191,25 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+
+            children: const [
+              Text(
                 'Orgaflow',
+
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
                   color: darkColor,
                 ),
               ),
-              const SizedBox(height: 2),
-              const Text(
+
+              SizedBox(height: 2),
+
+              Text(
                 'Employee Portal',
+
                 style: TextStyle(
                   fontSize: 12,
                   color: greyColor,
@@ -192,28 +232,36 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   Widget _buildNotificationButton() {
     return Stack(
       clipBehavior: Clip.none,
+
       children: [
         Container(
           height: 45,
           width: 45,
+
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius:
+                BorderRadius.circular(14),
+
             border: Border.all(
               color: const Color(0xFFE5E8EF),
             ),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color:
+                    Colors.black.withOpacity(0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
+
           child: IconButton(
             onPressed: () {
               _showNotifications(context);
             },
+
             icon: const Icon(
               Icons.notifications_none_rounded,
               color: darkColor,
@@ -225,10 +273,13 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
         Positioned(
           right: 10,
           top: 8,
+
           child: Container(
             height: 7,
             width: 7,
-            decoration: const BoxDecoration(
+
+            decoration:
+                const BoxDecoration(
               color: Color(0xFFE5484D),
               shape: BoxShape.circle,
             ),
@@ -244,10 +295,13 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
   Widget _buildWelcomeSection(String name) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+
       children: [
-        Text(
+        const Text(
           'Welcome back,',
+
           style: TextStyle(
             fontSize: 14,
             color: greyColor,
@@ -259,8 +313,10 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
         Text(
           '$name 👋',
+
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+
           style: const TextStyle(
             fontSize: 27,
             fontWeight: FontWeight.w800,
@@ -273,6 +329,7 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
         const Text(
           'Here is an overview of your organization assets.',
+
           style: TextStyle(
             fontSize: 13,
             color: greyColor,
@@ -289,9 +346,14 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   Widget _buildMyAssetsCard() {
     return _buildDashboardCard(
       icon: Icons.inventory_2_outlined,
+
       title: 'My Assets',
-      subtitle: 'View assets currently assigned to you',
+
+      subtitle:
+          'View assets currently assigned to you',
+
       buttonText: 'View My Assets',
+
       onTap: _openMyAssets,
     );
   }
@@ -303,9 +365,14 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   Widget _buildRequestsCard() {
     return _buildDashboardCard(
       icon: Icons.assignment_outlined,
+
       title: 'My Requests',
-      subtitle: 'Track your submitted asset requests',
+
+      subtitle:
+          'Track your submitted asset requests',
+
       buttonText: 'Track Requests',
+
       onTap: _openMyRequest,
     );
   }
@@ -323,30 +390,44 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   }) {
     return Container(
       width: double.infinity,
+
       padding: const EdgeInsets.all(18),
+
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+
+        borderRadius:
+            BorderRadius.circular(20),
+
         border: Border.all(
           color: const Color(0xFFE5E8EF),
         ),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.035),
+            color:
+                Colors.black.withOpacity(0.035),
             blurRadius: 18,
             offset: const Offset(0, 7),
           ),
         ],
       ),
+
       child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           Container(
             height: 54,
             width: 54,
+
             decoration: BoxDecoration(
               color: const Color(0xFFEEF2FF),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius:
+                  BorderRadius.circular(16),
             ),
+
             child: Icon(
               icon,
               color: primaryColor,
@@ -358,10 +439,13 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
                 Text(
                   title,
+
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -373,6 +457,7 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
                 Text(
                   subtitle,
+
                   style: const TextStyle(
                     fontSize: 12,
                     height: 1.35,
@@ -384,20 +469,29 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
                 GestureDetector(
                   onTap: onTap,
+
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize:
+                        MainAxisSize.min,
+
                     children: [
                       Text(
                         buttonText,
-                        style: const TextStyle(
+
+                        style:
+                            const TextStyle(
                           fontSize: 12,
                           color: primaryColor,
-                          fontWeight: FontWeight.w700,
+                          fontWeight:
+                              FontWeight.w700,
                         ),
                       ),
+
                       const SizedBox(width: 5),
+
                       const Icon(
-                        Icons.arrow_forward_rounded,
+                        Icons
+                            .arrow_forward_rounded,
                         size: 15,
                         color: primaryColor,
                       ),
@@ -421,19 +515,25 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
     String subtitle,
   ) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+
       children: [
         Text(
           title,
+
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
             color: darkColor,
           ),
         ),
+
         const SizedBox(height: 4),
+
         Text(
           subtitle,
+
           style: const TextStyle(
             fontSize: 12,
             color: greyColor,
@@ -444,7 +544,7 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   }
 
   // ============================================================
-  // QUICK ACCESS GRID
+  // QUICK ACCESS
   // ============================================================
 
   Widget _buildQuickAccessGrid() {
@@ -453,8 +553,11 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
         Expanded(
           child: _buildQuickCard(
             icon: Icons.devices_outlined,
+
             title: 'Available Assets',
+
             subtitle: 'Browse assets',
+
             onTap: () {
               setState(() {
                 _currentIndex = 1;
@@ -468,8 +571,11 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
         Expanded(
           child: _buildQuickCard(
             icon: Icons.assignment_outlined,
+
             title: 'Requests',
+
             subtitle: 'Manage requests',
+
             onTap: () {
               setState(() {
                 _currentIndex = 2;
@@ -493,36 +599,58 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   }) {
     return Material(
       color: Colors.transparent,
+
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+
+        borderRadius:
+            BorderRadius.circular(18),
+
         child: Container(
           height: 132,
-          padding: const EdgeInsets.all(16),
+
+          padding:
+              const EdgeInsets.all(16),
+
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+
+            borderRadius:
+                BorderRadius.circular(18),
+
             border: Border.all(
               color: const Color(0xFFE5E8EF),
             ),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.025),
+                color:
+                    Colors.black.withOpacity(
+                  0.025,
+                ),
                 blurRadius: 14,
                 offset: const Offset(0, 5),
               ),
             ],
           ),
+
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+
             children: [
               Container(
                 height: 43,
                 width: 43,
+
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(13),
+                  color:
+                      const Color(0xFFEEF2FF),
+
+                  borderRadius:
+                      BorderRadius.circular(13),
                 ),
+
                 child: Icon(
                   icon,
                   color: primaryColor,
@@ -534,8 +662,11 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
               Text(
                 title,
+
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow:
+                    TextOverflow.ellipsis,
+
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -550,17 +681,27 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
                   Expanded(
                     child: Text(
                       subtitle,
-                      style: const TextStyle(
+
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+
+                      style:
+                          const TextStyle(
                         fontSize: 11,
                         color: greyColor,
                       ),
                     ),
                   ),
 
+                  const SizedBox(width: 4),
+
                   const Icon(
-                    Icons.arrow_forward_rounded,
+                    Icons
+                        .arrow_forward_rounded,
                     size: 15,
-                    color: Color(0xFF9AA0AC),
+                    color:
+                        Color(0xFF9AA0AC),
                   ),
                 ],
               ),
@@ -578,23 +719,35 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   Widget _buildActivityCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(17),
+
+      padding:
+          const EdgeInsets.all(17),
+
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+
+        borderRadius:
+            BorderRadius.circular(18),
+
         border: Border.all(
           color: const Color(0xFFE5E8EF),
         ),
       ),
+
       child: Row(
         children: [
           Container(
             height: 44,
             width: 44,
+
             decoration: BoxDecoration(
-              color: const Color(0xFFF2F4F8),
-              borderRadius: BorderRadius.circular(13),
+              color:
+                  const Color(0xFFF2F4F8),
+
+              borderRadius:
+                  BorderRadius.circular(13),
             ),
+
             child: const Icon(
               Icons.history_rounded,
               color: Color(0xFF687080),
@@ -606,19 +759,26 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
           const Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
                 Text(
                   'No recent activity',
+
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight:
+                        FontWeight.w700,
                     color: darkColor,
                   ),
                 ),
+
                 SizedBox(height: 4),
+
                 Text(
                   'Your latest asset and request activities will appear here.',
+
                   style: TextStyle(
                     fontSize: 11.5,
                     height: 1.4,
@@ -640,21 +800,34 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   Widget _buildInfoCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(17),
+
+      padding:
+          const EdgeInsets.all(17),
+
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF2FF),
-        borderRadius: BorderRadius.circular(18),
+        color:
+            const Color(0xFFEEF2FF),
+
+        borderRadius:
+            BorderRadius.circular(18),
       ),
+
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           Container(
             height: 42,
             width: 42,
+
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
+
             child: const Icon(
               Icons.security_outlined,
               color: primaryColor,
@@ -666,13 +839,17 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
           const Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
                 Text(
                   'Employee Access',
+
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight:
+                        FontWeight.w800,
                     color: darkColor,
                   ),
                 ),
@@ -681,10 +858,12 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
 
                 Text(
                   'You can view your assigned assets, browse available assets, submit requests and track your requests.',
+
                   style: TextStyle(
                     fontSize: 11.5,
                     height: 1.45,
-                    color: Color(0xFF5E6675),
+                    color:
+                        Color(0xFF5E6675),
                   ),
                 ),
               ],
@@ -702,10 +881,13 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   void _openMyAssets() {
     Navigator.push(
       context,
+
       MaterialPageRoute(
-        builder: (context) => EmployeeMyAssetsPage(
-          userData: widget.userData,
-        ),
+        builder: (context) {
+          return EmployeeMyAssetsPage(
+            userData: widget.userData,
+          );
+        },
       ),
     );
   }
@@ -717,10 +899,13 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   void _openMyRequest() {
     Navigator.push(
       context,
+
       MaterialPageRoute(
-        builder: (context) => MyRequest(
-          userData: widget.userData,
-        ),
+        builder: (context) {
+          return MyRequest(
+            userData: widget.userData,
+          );
+        },
       ),
     );
   }
@@ -733,36 +918,49 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
+
         border: const Border(
           top: BorderSide(
             color: Color(0xFFE6E9EF),
           ),
         ),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color:
+                Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
         ],
       ),
+
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
-        type: BottomNavigationBarType.fixed,
+
+        type:
+            BottomNavigationBarType.fixed,
+
         backgroundColor: Colors.white,
+
         elevation: 0,
 
-        selectedItemColor: primaryColor,
-        unselectedItemColor: const Color(0xFF9298A5),
+        selectedItemColor:
+            primaryColor,
+
+        unselectedItemColor:
+            const Color(0xFF9298A5),
 
         selectedFontSize: 11,
+
         unselectedFontSize: 11,
 
-        selectedLabelStyle: const TextStyle(
+        selectedLabelStyle:
+            const TextStyle(
           fontWeight: FontWeight.w700,
         ),
 
-        onTap: (index) {
+        onTap: (int index) {
           setState(() {
             _currentIndex = index;
           });
@@ -774,10 +972,12 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
               Icons.home_outlined,
               size: 23,
             ),
+
             activeIcon: Icon(
               Icons.home_rounded,
               size: 23,
             ),
+
             label: 'Home',
           ),
 
@@ -786,10 +986,12 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
               Icons.devices_outlined,
               size: 23,
             ),
+
             activeIcon: Icon(
               Icons.devices_rounded,
               size: 23,
             ),
+
             label: 'Assets',
           ),
 
@@ -798,10 +1000,12 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
               Icons.assignment_outlined,
               size: 23,
             ),
+
             activeIcon: Icon(
               Icons.assignment_rounded,
               size: 23,
             ),
+
             label: 'Requests',
           ),
 
@@ -810,10 +1014,12 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
               Icons.person_outline_rounded,
               size: 23,
             ),
+
             activeIcon: Icon(
               Icons.person_rounded,
               size: 23,
             ),
+
             label: 'Profile',
           ),
         ],
@@ -825,100 +1031,173 @@ class _ExistingEmployeeHomeState extends State<ExistingEmployeeHome> {
   // NOTIFICATIONS
   // ============================================================
 
-  void _showNotifications(BuildContext context) {
+  void _showNotifications(
+    BuildContext context,
+  ) {
     showModalBottomSheet(
       context: context,
+
       backgroundColor: Colors.white,
+
       isScrollControlled: false,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
+
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
           top: Radius.circular(25),
         ),
       ),
-      builder: (context) {
+
+      builder:
+          (BuildContext context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding:
+                const EdgeInsets.fromLTRB(
               20,
               12,
               20,
               28,
             ),
+
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize:
+                  MainAxisSize.min,
+
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
                 Center(
                   child: Container(
                     height: 4,
                     width: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD7DAE1),
-                      borderRadius: BorderRadius.circular(10),
+
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          const Color(
+                        0xFFD7DAE1,
+                      ),
+
+                      borderRadius:
+                          BorderRadius.circular(
+                        10,
+                      ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(
+                  height: 22,
+                ),
 
                 const Text(
                   'Notifications',
+
                   style: TextStyle(
                     fontSize: 21,
-                    fontWeight: FontWeight.w800,
+                    fontWeight:
+                        FontWeight.w800,
                     color: darkColor,
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(
+                  height: 18,
+                ),
 
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F8FB),
-                    borderRadius: BorderRadius.circular(16),
+
+                  padding:
+                      const EdgeInsets.all(
+                    15,
                   ),
+
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFFF7F8FB,
+                    ),
+
+                    borderRadius:
+                        BorderRadius.circular(
+                      16,
+                    ),
+                  ),
+
                   child: Row(
                     children: [
                       Container(
                         height: 43,
                         width: 43,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(13),
+
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              const Color(
+                            0xFFEEF2FF,
+                          ),
+
+                          borderRadius:
+                              BorderRadius.circular(
+                            13,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: primaryColor,
+
+                        child:
+                            const Icon(
+                          Icons
+                              .notifications_none_rounded,
+                          color:
+                              primaryColor,
                           size: 22,
                         ),
                       ),
 
-                      const SizedBox(width: 13),
+                      const SizedBox(
+                        width: 13,
+                      ),
 
                       const Expanded(
                         child: Column(
                           crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              CrossAxisAlignment
+                                  .start,
+
                           children: [
                             Text(
                               'No new notifications',
-                              style: TextStyle(
+
+                              style:
+                                  TextStyle(
                                 fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: darkColor,
+                                fontWeight:
+                                    FontWeight
+                                        .w700,
+                                color:
+                                    darkColor,
                               ),
                             ),
 
-                            SizedBox(height: 4),
+                            SizedBox(
+                              height: 4,
+                            ),
 
                             Text(
                               'Updates about your assets and requests will appear here.',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                height: 1.4,
-                                color: greyColor,
+
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    11.5,
+                                height:
+                                    1.4,
+                                color:
+                                    greyColor,
                               ),
                             ),
                           ],
