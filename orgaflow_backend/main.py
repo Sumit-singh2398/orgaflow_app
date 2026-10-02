@@ -66,6 +66,7 @@ pwd_context = CryptContext(
 
 def get_db_connection():
 
+
     return psycopg2.connect(
         host="localhost",
         database="orgaflow_db",
