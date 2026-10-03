@@ -346,7 +346,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return _simplePage(
       icon: Icons.people_outline,
       title: 'Employees',
-      subtitle: 'Manage all organization employees.',
+      subtitle: 'Manage all organization employee .',
       buttonText: 'Add Employee',
     );
   }
