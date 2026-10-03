@@ -1,25 +1,31 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
-from passlib.context import CryptContext
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from passlib.context import CryptContext
+
 from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
+from google.auth.transport import requests
 
-import re
+from jose import jwt
+from datetime import datetime, timedelta
 
 
-# ============================================================
+# =========================================================
 # APP
-# ============================================================
+# =========================================================
 
 app = FastAPI(
-    title="Orgaflow API",
+    title="Orgaflow Backend",
     version="1.0.0"
 )
+
+
+# =========================================================
+# CORS
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,29 +36,41 @@ app.add_middleware(
 )
 
 
-# ============================================================
-# GOOGLE CONFIGURATION
-# ============================================================
+# =========================================================
+# DATABASE CONFIG
+# =========================================================
+
+DB_HOST = "localhost"
+DB_PORT = 5432
+DB_NAME = "orgaflow_db"
+DB_USER = "postgres"
+DB_PASSWORD = "mehra"
+
+
+# =========================================================
+# GOOGLE CONFIG
+# =========================================================
 
 GOOGLE_CLIENT_ID = (
-    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com"
+    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3"
+    ".apps.googleusercontent.com"
 )
 
 
-# ============================================================
+# =========================================================
+# JWT CONFIG
+# =========================================================
+
+JWT_SECRET = "orgaflow_super_secret_key_change_later"
+
+JWT_ALGORITHM = "HS256"
+
+JWT_EXPIRATION_MINUTES = 60 * 24
+
+
+# =========================================================
 # PASSWORD HASHING
-# ============================================================
-#
-# IMPORTANT:
-# This is bcrypt password hashing.
-# It is NOT JWT.
-#
-# Signup:
-# password -> bcrypt hash -> database
-#
-# Login:
-# entered password + database hash -> verify
-#
+# =========================================================
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
@@ -60,359 +78,180 @@ pwd_context = CryptContext(
 )
 
 
-# ============================================================
-# DATABASE
-# ============================================================
+# =========================================================
+# DATABASE CONNECTION
+# =========================================================
 
-def get_db_connection():
-
+def get_connection():
 
     return psycopg2.connect(
-        host="localhost",
-        database="orgaflow_db",
-        user="postgres",
-        password="mehra",
-        cursor_factory=RealDictCursor
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD
     )
 
 
-# ============================================================
-# REQUEST MODELS
-# ============================================================
+# =========================================================
+# NORMALIZE PORTAL
+# =========================================================
 
-class SignupRequest(BaseModel):
+def normalize_portal(portal):
 
-    name: str = Field(
-        ...,
-        min_length=2,
-        max_length=100
-    )
+    if portal is None:
+        return None
 
-    email: EmailStr
+    value = str(portal).strip().lower()
 
-    phone: str = Field(
-        ...,
-        min_length=10,
-        max_length=15
-    )
+    if value == "employee":
+        return "employee"
 
-    password: str = Field(
-        ...,
-        min_length=6,
-        max_length=100
-    )
+    if value in ["management", "manager", "admin"]:
+        return "management"
+
+    return None
 
 
-class LoginRequest(BaseModel):
+# =========================================================
+# NORMALIZE FRONTEND ROLE
+# =========================================================
 
-    email: EmailStr
-
-    password: str
-
-    portal: str
-
-    # Only required for Management Portal
-    role: str | None = None
-
-
-class GoogleLoginRequest(BaseModel):
-
-    id_token: str
-
-    portal: str
-
-    # Only required for Management Portal
-    role: str | None = None
-
-
-# ============================================================
-# VALID PORTALS
-# ============================================================
-
-VALID_PORTALS = {
-    "employee",
-    "management"
-}
-
-
-# ============================================================
-# VALID MANAGEMENT ROLES
-# ============================================================
-
-VALID_MANAGEMENT_ROLES = {
-    "ADMIN",
-    "ASSET_MANAGER",
-    "DEPARTMENT_HEAD"
-}
-
-
-# ============================================================
-# PORTAL NORMALIZATION
-# ============================================================
-
-def normalize_portal(portal: str) -> str:
-
-    if not portal:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Portal is required."
-        )
-
-    normalized = portal.strip().lower()
-
-    if normalized not in VALID_PORTALS:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Invalid portal. "
-                "Use Employee or Management."
-            )
-        )
-
-    return normalized
-
-
-# ============================================================
-# ROLE NORMALIZATION
-# ============================================================
-
-def normalize_role(
-    role: str | None
-) -> str | None:
+def normalize_role(role):
 
     if role is None:
         return None
 
-    normalized = (
-        role
-        .strip()
-        .upper()
-        .replace("-", "_")
-        .replace(" ", "_")
+    value = str(role).strip()
+
+    compact = (
+        value
+        .replace(" ", "")
+        .replace("_", "")
+        .lower()
     )
 
-    if normalized not in VALID_MANAGEMENT_ROLES:
+    if compact == "admin":
+        return "ADMIN"
 
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid management role."
-        )
+    if compact == "assetmanager":
+        return "ASSET_MANAGER"
 
-    return normalized
+    if compact == "departmenthead":
+        return "DEPARTMENT_HEAD"
 
-
-# ============================================================
-# DATABASE ROLE NORMALIZATION
-# ============================================================
-
-def normalize_database_role(
-    role
-) -> str:
-
-    if role is None:
+    if compact == "employee":
         return "EMPLOYEE"
 
-    return (
-        str(role)
-        .strip()
-        .upper()
-        .replace("-", "_")
-        .replace(" ", "_")
+    return value.upper()
+
+
+# =========================================================
+# NORMALIZE DATABASE ROLE
+# =========================================================
+
+def normalize_database_role(role):
+
+    if role is None:
+        return None
+
+    value = str(role).strip()
+
+    compact = (
+        value
+        .replace(" ", "")
+        .replace("_", "")
+        .lower()
     )
 
+    if compact == "employee":
+        return "EMPLOYEE"
 
-# ============================================================
-# PORTAL + ROLE AUTHORIZATION
-# ============================================================
-#
-# IMPORTANT:
-#
-# Flutter role selection NEVER gives permission.
-#
-# Actual permission comes from:
-#
-# users.role
-#
-# Example:
-#
-# Database:
-# role = Employee
-#
-# Flutter:
-# Management -> Admin
-#
-# Result:
-# 403
-#
-# Database:
-# role = Admin
-#
-# Flutter:
-# Management -> Admin
-#
-# Result:
-# Allowed
-#
+    if compact == "departmenthead":
+        return "DEPARTMENT_HEAD"
 
-def verify_portal_and_role(
-    user: dict,
-    portal: str,
-    selected_role: str | None
+    if compact == "assetmanager":
+        return "ASSET_MANAGER"
+
+    if compact == "admin":
+        return "ADMIN"
+
+    return value.upper()
+
+
+# =========================================================
+# CREATE JWT
+# =========================================================
+
+def create_access_token(
+    user_id,
+    email,
+    role,
+    portal
 ):
 
-    portal = normalize_portal(portal)
-
-    selected_role = normalize_role(
-        selected_role
+    expire = datetime.utcnow() + timedelta(
+        minutes=JWT_EXPIRATION_MINUTES
     )
 
-    database_role = normalize_database_role(
-        user.get("role")
+    payload = {
+        "user_id": user_id,
+        "email": email,
+        "role": role,
+        "portal": portal,
+        "exp": expire
+    }
+
+    token = jwt.encode(
+        payload,
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM
     )
 
-    # ========================================================
-    # EMPLOYEE PORTAL
-    # ========================================================
-
-    if portal == "employee":
-
-        # Employee portal is for Employees.
-        #
-        # Admin is also allowed here because Admin
-        # has full organization access.
-
-        if database_role not in {
-            "EMPLOYEE",
-            "ADMIN"
-        }:
-
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "This account does not have "
-                    "Employee Portal access."
-                )
-            )
-
-        # Management role should not be supplied
-        # when Employee portal is selected.
-
-        if selected_role is not None:
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Management role is not allowed "
-                    "in Employee Portal."
-                )
-            )
-
-        return True
-
-    # ========================================================
-    # MANAGEMENT PORTAL
-    # ========================================================
-
-    if portal == "management":
-
-        # Employee cannot enter Management Portal.
-
-        if database_role not in VALID_MANAGEMENT_ROLES:
-
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "This account does not have "
-                    "Management Portal access."
-                )
-            )
-
-        # Management role must be selected.
-
-        if selected_role is None:
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Please select your management role."
-                )
-            )
-
-        # Selected role must match actual database role.
-
-        if selected_role != database_role:
-
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Selected management role does not "
-                    "match your assigned role."
-                )
-            )
-
-        return True
-
-    return False
+    return token
 
 
-# ============================================================
-# USER RESPONSE
-# ============================================================
+# =========================================================
+# ROOT
+# =========================================================
 
-def build_user_response(
-    user: dict,
-    is_new_user: bool = False
-):
+@app.get("/")
+def root():
 
     return {
-        "id": user["id"],
-        "name": user["name"],
-        "email": user["email"],
-        "role": user["role"],
-        "status": user["status"],
-        "is_new_user": is_new_user
+        "message": "Orgaflow Backend is running",
+        "status": "success"
     }
 
 
-# ============================================================
+# =========================================================
 # SIGNUP
-# ============================================================
+# =========================================================
 
-@app.post(
-    "/api/auth/signup",
-    status_code=status.HTTP_201_CREATED
-)
-def signup(
-    user: SignupRequest
-):
+@app.post("/api/auth/signup")
+def signup(data: dict):
 
-    # ========================================================
-    # PHONE VALIDATION
-    # ========================================================
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+    department_id = data.get("department_id")
 
-    if not re.match(
-        r"^\+?[0-9]{10,15}$",
-        user.phone
-    ):
+    if not name or not email or not password:
 
         raise HTTPException(
             status_code=400,
-            detail="Invalid phone number format."
+            detail="Name, email and password are required."
         )
 
-    conn = None
-    cursor = None
+    email = email.strip().lower()
+
+    connection = get_connection()
+
+    cursor = connection.cursor(
+        cursor_factory=RealDictCursor
+    )
 
     try:
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # ====================================================
-        # CHECK EXISTING EMAIL
-        # ====================================================
 
         cursor.execute(
             """
@@ -420,7 +259,7 @@ def signup(
             FROM users
             WHERE LOWER(email) = LOWER(%s)
             """,
-            (user.email,)
+            (email,)
         )
 
         existing_user = cursor.fetchone()
@@ -429,27 +268,10 @@ def signup(
 
             raise HTTPException(
                 status_code=400,
-                detail="Email already registered."
+                detail="User already exists."
             )
 
-        # ====================================================
-        # BCRYPT PASSWORD HASH
-        # ====================================================
-
-        hashed_password = pwd_context.hash(
-            user.password
-        )
-
-        # ====================================================
-        # CREATE EMPLOYEE
-        # ====================================================
-        #
-        # IMPORTANT:
-        # Every normal signup becomes Employee.
-        #
-        # User cannot create Admin / Asset Manager /
-        # Department Head from signup.
-        #
+        password_hash = pwd_context.hash(password)
 
         cursor.execute(
             """
@@ -459,6 +281,7 @@ def signup(
                 email,
                 password_hash,
                 role,
+                department_id,
                 status
             )
             VALUES
@@ -467,6 +290,7 @@ def signup(
                 %s,
                 %s,
                 'Employee',
+                %s,
                 'Active'
             )
             RETURNING
@@ -474,102 +298,75 @@ def signup(
                 name,
                 email,
                 role,
-                status,
-                created_at
+                department_id,
+                status
             """,
             (
-                user.name,
-                user.email,
-                hashed_password
+                name,
+                email,
+                password_hash,
+                department_id
             )
         )
 
-        new_user = cursor.fetchone()
+        user = cursor.fetchone()
 
-        conn.commit()
-
-        # ====================================================
-        # RESPONSE
-        # ====================================================
+        connection.commit()
 
         return {
-            "message": (
-                "Employee account created successfully"
-            ),
-
-            "user": build_user_response(
-                new_user,
-                is_new_user=True
-            )
+            "success": True,
+            "message": "Signup successful.",
+            "user": user
         }
 
     except HTTPException:
 
-        if conn:
-            conn.rollback()
-
+        connection.rollback()
         raise
 
     except Exception as e:
 
-        if conn:
-            conn.rollback()
+        connection.rollback()
 
-        print(
-            "SIGNUP ERROR:",
-            repr(e)
-        )
+        print("SIGNUP ERROR:", e)
 
         raise HTTPException(
             status_code=500,
-            detail="Unable to create account."
+            detail="Signup failed."
         )
 
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if conn:
-            conn.close()
+        cursor.close()
+        connection.close()
 
 
-# ============================================================
-# EMAIL + PASSWORD LOGIN
-# ============================================================
+# =========================================================
+# EMAIL / PASSWORD LOGIN
+# =========================================================
 
 @app.post("/api/auth/login")
-def login(
-    credentials: LoginRequest
-):
+def login(data: dict):
 
-    conn = None
-    cursor = None
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Email and password are required."
+        )
+
+    email = email.strip().lower()
+
+    connection = get_connection()
+
+    cursor = connection.cursor(
+        cursor_factory=RealDictCursor
+    )
 
     try:
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # ====================================================
-        # NORMALIZE PORTAL
-        # ====================================================
-
-        portal = normalize_portal(
-            credentials.portal
-        )
-
-        # ====================================================
-        # NORMALIZE ROLE
-        # ====================================================
-
-        selected_role = normalize_role(
-            credentials.role
-        )
-
-        # ====================================================
-        # FIND USER
-        # ====================================================
 
         cursor.execute(
             """
@@ -580,12 +377,11 @@ def login(
                 password_hash,
                 role,
                 department_id,
-                status,
-                created_at
+                status
             FROM users
             WHERE LOWER(email) = LOWER(%s)
             """,
-            (credentials.email,)
+            (email,)
         )
 
         user = cursor.fetchone()
@@ -597,81 +393,56 @@ def login(
                 detail="Invalid email or password."
             )
 
-        # ====================================================
-        # ACCOUNT STATUS
-        # ====================================================
+        password_hash = user.get("password_hash")
 
-        if (
-            str(user["status"])
-            .strip()
-            .upper()
-            != "ACTIVE"
-        ):
-
-            raise HTTPException(
-                status_code=403,
-                detail="Your account is not active."
-            )
-
-        # ====================================================
-        # GOOGLE-ONLY ACCOUNT
-        # ====================================================
-
-        if not user["password_hash"]:
+        if not password_hash:
 
             raise HTTPException(
                 status_code=401,
-                detail=(
-                    "This account uses Google Sign-In. "
-                    "Please continue with Google."
-                )
+                detail="This account uses Google login."
             )
 
-        # ====================================================
-        # BCRYPT PASSWORD VERIFICATION
-        # ====================================================
-
-        try:
-
-            password_valid = pwd_context.verify(
-                credentials.password,
-                user["password_hash"]
-            )
-
-        except Exception:
-
-            password_valid = False
-
-        if not password_valid:
+        if not pwd_context.verify(
+            password,
+            password_hash
+        ):
 
             raise HTTPException(
                 status_code=401,
                 detail="Invalid email or password."
             )
 
-        # ====================================================
-        # PORTAL + ROLE AUTHORIZATION
-        # ====================================================
+        if str(user["status"]).lower() != "active":
 
-        verify_portal_and_role(
-            user,
-            portal,
-            selected_role
+            raise HTTPException(
+                status_code=403,
+                detail="User account is inactive."
+            )
+
+        database_role = normalize_database_role(
+            user["role"]
         )
 
-        # ====================================================
-        # RESPONSE
-        # ====================================================
+        token = create_access_token(
+            user["id"],
+            user["email"],
+            database_role,
+            "employee"
+        )
 
         return {
-            "message": "Login successful",
-
-            "portal": portal,
-
-            "user": build_user_response(
-                user,
-                is_new_user=False
-            )
+            "success": True,
+            "message": "Login successful.",
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "role": database_role,
+                "department_id": user["department_id"],
+                "status": user["status"]
+            }
         }
 
     except HTTPException:
@@ -680,290 +451,473 @@ def login(
 
     except Exception as e:
 
-        print(
-            "LOGIN ERROR:",
-            repr(e)
-        )
+        print("LOGIN ERROR:", e)
 
         raise HTTPException(
             status_code=500,
-            detail="Login failed due to server error."
+            detail="Login failed."
         )
 
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if conn:
-            conn.close()
+        cursor.close()
+        connection.close()
 
 
-# ============================================================
-# GOOGLE LOGIN
-# ============================================================
+# =========================================================
+# VERIFY PORTAL + ROLE
+# =========================================================
 
-@app.post("/api/auth/google-login")
-def google_login(
-    credentials: GoogleLoginRequest
+def verify_portal_and_role(
+    portal,
+    selected_role,
+    database_role
 ):
 
-    conn = None
-    cursor = None
+    portal = normalize_portal(portal)
+
+    selected_role = normalize_role(
+        selected_role
+    )
+
+    database_role = normalize_database_role(
+        database_role
+    )
+
+    # -----------------------------------------------------
+    # INVALID PORTAL
+    # -----------------------------------------------------
+
+    if not portal:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid portal."
+        )
+
+    # -----------------------------------------------------
+    # EMPLOYEE PORTAL
+    # -----------------------------------------------------
+
+    if portal == "employee":
+
+        allowed_roles = {
+            "EMPLOYEE",
+            "ADMIN"
+        }
+
+        if database_role not in allowed_roles:
+
+            raise HTTPException(
+                status_code=403,
+                detail="This account is not allowed to access Employee portal."
+            )
+
+        return
+
+    # -----------------------------------------------------
+    # MANAGEMENT PORTAL
+    # -----------------------------------------------------
+
+    if portal == "management":
+
+        allowed_management_roles = {
+            "ADMIN",
+            "ASSET_MANAGER",
+            "DEPARTMENT_HEAD"
+        }
+
+        # Selected role is required
+        if not selected_role:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Management role is required."
+            )
+
+        # Selected role must be a valid management role
+        if selected_role not in allowed_management_roles:
+
+            raise HTTPException(
+                status_code=403,
+                detail="Invalid management role."
+            )
+
+        # Database role must be a management role
+        if database_role not in allowed_management_roles:
+
+            raise HTTPException(
+                status_code=403,
+                detail="This account is not authorized for Management portal."
+            )
+
+        # Selected role must match actual DB role
+        if selected_role != database_role:
+
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Selected management role does not match "
+                    "the role assigned to this account."
+                )
+            )
+
+        return
+
+
+# =========================================================
+# GOOGLE LOGIN
+# =========================================================
+
+@app.post("/api/auth/google-login")
+def google_login(data: dict):
+
+    print()
+    print("========================================")
+    print("GOOGLE LOGIN REQUEST RECEIVED")
+    print("RAW REQUEST DATA:", data)
+    print("========================================")
+
+    # IMPORTANT:
+    # Flutter currently sends "id_token".
+    #
+    # "credential" is also supported for compatibility.
+    #
+    credential = (
+        data.get("id_token")
+        or data.get("credential")
+    )
+
+    portal = normalize_portal(
+        data.get("portal")
+    )
+
+    selected_role = normalize_role(
+        data.get("role")
+    )
+
+    print(
+        "CREDENTIAL EXISTS:",
+        bool(credential)
+    )
+
+    print(
+        "PORTAL:",
+        portal
+    )
+
+    print(
+        "SELECTED ROLE:",
+        selected_role
+    )
+
+    # -----------------------------------------------------
+    # TOKEN CHECK
+    # -----------------------------------------------------
+
+    if not credential:
+
+        print(
+            "ERROR: Google ID token missing"
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail="Google ID token is required."
+        )
+
+    # -----------------------------------------------------
+    # PORTAL CHECK
+    # -----------------------------------------------------
+
+    if not portal:
+
+        print(
+            "ERROR: Invalid or missing portal"
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid portal."
+        )
+
+    # -----------------------------------------------------
+    # VERIFY GOOGLE TOKEN
+    # -----------------------------------------------------
 
     try:
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # ====================================================
-        # NORMALIZE PORTAL
-        # ====================================================
-
-        portal = normalize_portal(
-            credentials.portal
+        google_user = id_token.verify_oauth2_token(
+            credential,
+            requests.Request(),
+            GOOGLE_CLIENT_ID
         )
 
-        # ====================================================
-        # NORMALIZE ROLE
-        # ====================================================
+    except ValueError as e:
 
-        selected_role = normalize_role(
-            credentials.role
+        print(
+            "GOOGLE TOKEN VERIFICATION ERROR:",
+            e
         )
 
-        # ====================================================
-        # VERIFY GOOGLE ID TOKEN
-        # ====================================================
-
-        try:
-
-            google_user = (
-                id_token.verify_oauth2_token(
-                    credentials.id_token,
-                    google_requests.Request(),
-                    GOOGLE_CLIENT_ID
-                )
-            )
-
-        except ValueError:
-
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid Google ID token."
-            )
-
-        # ====================================================
-        # GOOGLE INFORMATION
-        # ====================================================
-
-        google_id = google_user.get("sub")
-
-        google_email = google_user.get(
-            "email"
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired Google ID token."
         )
 
-        google_name = google_user.get(
-            "name"
+    except Exception as e:
+
+        print(
+            "GOOGLE TOKEN ERROR:",
+            e
         )
 
-        if (
-            not google_id
-            or not google_email
-        ):
-
-            raise HTTPException(
-                status_code=401,
-                detail=(
-                    "Google account information "
-                    "is incomplete."
-                )
-            )
-
-        google_email = (
-            google_email
-            .strip()
-            .lower()
+        raise HTTPException(
+            status_code=401,
+            detail="Google authentication failed."
         )
 
-        google_name = (
-            google_name
-            or "Google User"
+    # -----------------------------------------------------
+    # GOOGLE USER DATA
+    # -----------------------------------------------------
+
+    google_id = google_user.get("sub")
+    email = google_user.get("email")
+    name = google_user.get("name")
+
+    if not google_id or not email:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Google account information is incomplete."
         )
 
-        # ====================================================
-        # CHECK OAUTH USERS
-        # ====================================================
+    email = email.strip().lower()
+
+    print(
+        "GOOGLE USER:",
+        email
+    )
+
+    print(
+        "GOOGLE NAME:",
+        name
+    )
+
+    print(
+        "GOOGLE ID:",
+        google_id
+    )
+
+    # =====================================================
+    # DATABASE
+    # =====================================================
+
+    connection = get_connection()
+
+    cursor = connection.cursor(
+        cursor_factory=RealDictCursor
+    )
+
+    try:
+
+        # -------------------------------------------------
+        # FIND EXISTING USER
+        # -------------------------------------------------
 
         cursor.execute(
             """
-            SELECT *
-            FROM oauth_users
-            WHERE google_id = %s
+            SELECT
+                id,
+                name,
+                email,
+                password_hash,
+                role,
+                department_id,
+                status
+            FROM users
+            WHERE LOWER(email) = LOWER(%s)
             """,
-            (google_id,)
+            (email,)
         )
 
-        oauth_user = cursor.fetchone()
+        user = cursor.fetchone()
 
-        is_new_user = False
+        # -------------------------------------------------
+        # USER DOES NOT EXIST
+        # -------------------------------------------------
 
-        user_id = None
+        if not user:
 
-        # ====================================================
-        # EXISTING OAUTH USER
-        # ====================================================
+            print(
+                "USER NOT FOUND IN USERS TABLE"
+            )
 
-        if oauth_user:
+            # New Google users can enter Employee portal.
+            #
+            # But management users must first be
+            # provisioned by an administrator.
 
-            # ------------------------------------------------
-            # OAuth account status
-            # ------------------------------------------------
-
-            if (
-                str(oauth_user["status"])
-                .strip()
-                .upper()
-                != "ACTIVE"
-            ):
+            if portal == "management":
 
                 raise HTTPException(
                     status_code=403,
                     detail=(
-                        "Your Google account "
-                        "access is inactive."
+                        "Management access is not available "
+                        "for this Google account. "
+                        "Ask an administrator to provision "
+                        "your management role first."
                     )
                 )
 
-            user_id = oauth_user["user_id"]
-
-            # ------------------------------------------------
-            # Safety check
-            # ------------------------------------------------
-
-            if user_id is None:
-
-                # Try to reconnect by email.
-
-                cursor.execute(
-                    """
-                    SELECT id
-                    FROM users
-                    WHERE LOWER(email) = LOWER(%s)
-                    """,
-                    (google_email,)
-                )
-
-                linked_user = cursor.fetchone()
-
-                if linked_user:
-
-                    user_id = linked_user["id"]
-
-                    cursor.execute(
-                        """
-                        UPDATE oauth_users
-                        SET
-                            user_id = %s,
-                            email = %s,
-                            name = %s
-                        WHERE google_id = %s
-                        """,
-                        (
-                            user_id,
-                            google_email,
-                            google_name,
-                            google_id
-                        )
-                    )
-
-                else:
-
-                    raise HTTPException(
-                        status_code=404,
-                        detail=(
-                            "Google account is not linked "
-                            "to an Orgaflow user."
-                        )
-                    )
-
-        # ====================================================
-        # NEW OAUTH USER
-        # ====================================================
-
-        else:
-
-            # ------------------------------------------------
-            # CHECK COMPANY USER BY EMAIL
-            # ------------------------------------------------
+            # -------------------------------------------------
+            # CREATE EMPLOYEE USER
+            # -------------------------------------------------
 
             cursor.execute(
                 """
-                SELECT *
-                FROM users
-                WHERE LOWER(email) = LOWER(%s)
+                INSERT INTO users
+                (
+                    name,
+                    email,
+                    password_hash,
+                    role,
+                    status
+                )
+                VALUES
+                (
+                    %s,
+                    %s,
+                    NULL,
+                    'Employee',
+                    'Active'
+                )
+                RETURNING
+                    id,
+                    name,
+                    email,
+                    role,
+                    department_id,
+                    status
                 """,
-                (google_email,)
+                (
+                    name or "Employee",
+                    email
+                )
             )
 
-            existing_user = cursor.fetchone()
+            user = cursor.fetchone()
 
-            # ------------------------------------------------
-            # EXISTING COMPANY USER
-            # ------------------------------------------------
+            connection.commit()
 
-            if existing_user:
+            print(
+                "NEW EMPLOYEE USER CREATED"
+            )
 
-                user_id = existing_user["id"]
+        # -------------------------------------------------
+        # USER EXISTS
+        # -------------------------------------------------
 
-            # ------------------------------------------------
-            # CREATE NEW EMPLOYEE
-            # ------------------------------------------------
+        database_role_raw = user.get("role")
 
-            else:
+        database_role = normalize_database_role(
+            database_role_raw
+        )
 
-                cursor.execute(
-                    """
-                    INSERT INTO users
-                    (
-                        name,
-                        email,
-                        password_hash,
-                        role,
-                        status
-                    )
-                    VALUES
-                    (
-                        %s,
-                        %s,
-                        NULL,
-                        'Employee',
-                        'Active'
-                    )
-                    RETURNING
-                        id
-                    """,
-                    (
-                        google_name,
-                        google_email
-                    )
+        print(
+            "DATABASE ROLE RAW:",
+            database_role_raw
+        )
+
+        print(
+            "DATABASE ROLE NORMALIZED:",
+            database_role
+        )
+
+        print(
+            "USER ID:",
+            user["id"]
+        )
+
+        print(
+            "STATUS:",
+            user["status"]
+        )
+
+        # -------------------------------------------------
+        # STATUS CHECK
+        # -------------------------------------------------
+
+        if str(user["status"]).lower() != "active":
+
+            raise HTTPException(
+                status_code=403,
+                detail="User account is inactive."
+            )
+
+        # -------------------------------------------------
+        # PORTAL + ROLE AUTHORIZATION
+        # -------------------------------------------------
+
+        verify_portal_and_role(
+            portal,
+            selected_role,
+            database_role
+        )
+
+        # -------------------------------------------------
+        # FIND OAUTH USER
+        # -------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                google_id,
+                email,
+                name,
+                portal,
+                role,
+                status
+            FROM oauth_users
+            WHERE
+                LOWER(email) = LOWER(%s)
+            """,
+            (email,)
+        )
+
+        oauth_user = cursor.fetchone()
+
+        # -------------------------------------------------
+        # CREATE / UPDATE OAUTH MAPPING
+        # -------------------------------------------------
+
+        if oauth_user:
+
+            cursor.execute(
+                """
+                UPDATE oauth_users
+                SET
+                    user_id = %s,
+                    google_id = %s,
+                    name = %s,
+                    portal = %s,
+                    role = NULL,
+                    status = %s
+                WHERE id = %s
+                """,
+                (
+                    user["id"],
+                    google_id,
+                    name or user["name"],
+                    portal,
+                    user["status"],
+                    oauth_user["id"]
                 )
+            )
 
-                new_user = cursor.fetchone()
-
-                user_id = new_user["id"]
-
-                is_new_user = True
-
-            # ------------------------------------------------
-            # CREATE OAUTH MAPPING
-            # ------------------------------------------------
-            #
-            # portal is stored for reference.
-            #
-            # role is NULL because actual authority
-            # comes from users.role.
-            #
+        else:
 
             cursor.execute(
                 """
@@ -985,186 +939,84 @@ def google_login(
                     %s,
                     %s,
                     NULL,
-                    'Active'
+                    %s
                 )
                 """,
                 (
-                    user_id,
+                    user["id"],
                     google_id,
-                    google_email,
-                    google_name,
-                    portal
+                    email,
+                    name or user["name"],
+                    portal,
+                    user["status"]
                 )
             )
 
-        # ====================================================
-        # GET ACTUAL USER
-        # ====================================================
+        connection.commit()
 
-        cursor.execute(
-            """
-            SELECT
-                id,
-                name,
-                email,
-                password_hash,
-                role,
-                department_id,
-                status,
-                created_at
-            FROM users
-            WHERE id = %s
-            """,
-            (user_id,)
-        )
+        # -------------------------------------------------
+        # CREATE JWT
+        # -------------------------------------------------
 
-        user = cursor.fetchone()
-
-        if not user:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Application user not found."
-            )
-
-        # ====================================================
-        # USER STATUS
-        # ====================================================
-
-        if (
-            str(user["status"])
-            .strip()
-            .upper()
-            != "ACTIVE"
-        ):
-
-            raise HTTPException(
-                status_code=403,
-                detail="Your account is not active."
-            )
-
-        # ====================================================
-        # IMPORTANT:
-        # ACTUAL ROLE COMES FROM users TABLE
-        # ====================================================
-
-        actual_role = normalize_database_role(
-            user["role"]
-        )
-
-        print(
-            "GOOGLE USER:",
-            google_email
-        )
-
-        print(
-            "GOOGLE PORTAL:",
+        access_token = create_access_token(
+            user["id"],
+            user["email"],
+            database_role,
             portal
         )
 
-        print(
-            "SELECTED ROLE:",
-            selected_role
-        )
+        print()
+        print("========================================")
+        print("GOOGLE LOGIN SUCCESS")
+        print("EMAIL:", email)
+        print("PORTAL:", portal)
+        print("ROLE:", database_role)
+        print("USER ID:", user["id"])
+        print("========================================")
+        print()
 
-        print(
-            "DATABASE ROLE:",
-            actual_role
-        )
-
-        # ====================================================
-        # PORTAL + ROLE AUTHORIZATION
-        # ====================================================
-
-        verify_portal_and_role(
-            user,
-            portal,
-            selected_role
-        )
-
-        # ====================================================
-        # UPDATE OAUTH RECORD
-        # ====================================================
-        #
-        # Keep latest name/email.
-        #
-        # Do NOT overwrite role with Flutter role.
-        #
-
-        cursor.execute(
-            """
-            UPDATE oauth_users
-            SET
-                user_id = %s,
-                email = %s,
-                name = %s,
-                portal = %s
-            WHERE google_id = %s
-            """,
-            (
-                user["id"],
-                google_email,
-                google_name,
-                portal,
-                google_id
-            )
-        )
-
-        conn.commit()
-
-        # ====================================================
+        # -------------------------------------------------
         # RESPONSE
-        # ====================================================
+        # -------------------------------------------------
 
         return {
-            "message": "Google login successful",
-
-            "portal": portal,
-
-            "user": build_user_response(
-                user,
-                is_new_user=is_new_user
-            )
+            "success": True,
+            "message": "Google login successful.",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "role": database_role,
+                "department_id": user["department_id"],
+                "status": user["status"],
+                "portal": portal
+            }
         }
 
     except HTTPException:
 
-        if conn:
-            conn.rollback()
-
+        connection.rollback()
         raise
 
     except Exception as e:
 
-        if conn:
-            conn.rollback()
+        connection.rollback()
 
-        print(
-            "GOOGLE LOGIN ERROR:",
-            repr(e)
-        )
+        print()
+        print("========================================")
+        print("GOOGLE LOGIN DATABASE ERROR")
+        print("ERROR:", e)
+        print("========================================")
+        print()
 
         raise HTTPException(
             status_code=500,
-            detail="Google login failed due to server error."
+            detail="Google login failed."
         )
 
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if conn:
-            conn.close()
-
-
-# ============================================================
-# ROOT
-# ============================================================
-
-@app.get("/")
-def root():
-
-    return {
-        "message": "Orgaflow API is running"
-    }
+        cursor.close()
+        connection.close()
