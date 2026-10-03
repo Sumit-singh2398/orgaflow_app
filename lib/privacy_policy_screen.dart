@@ -58,7 +58,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'The information collected through Orgaflow is used to '
                 'authenticate users, manage employee accounts, assign and '
                 'track organizational assets, handle maintenance requests, '
-                'send notifications, and provide other application features.',
+                'send notifications, and provide other application features, '
               ),
 
               _SectionTitle('3. Account Information'),
@@ -73,7 +73,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'If you choose to sign in using Google, Orgaflow may receive '
                 'basic account information provided by Google, such as your '
                 'name, email address, and Google account identifier. This '
-                'information is used for authentication and account linking.',
+                'information is used for authentication and account linking,' 
               ),
 
               _SectionTitle('5. Asset Information'),
