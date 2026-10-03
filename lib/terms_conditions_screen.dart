@@ -56,7 +56,7 @@ class TermsConditionsScreen extends StatelessWidget {
               _SectionText(
                 'Users must provide accurate information while creating an '
                 'account. Users are responsible for maintaining the security '
-                'of their login credentials and account.',
+                'of their login credentials and account' 
               ),
 
               _SectionTitle('3. Authorized Use'),
