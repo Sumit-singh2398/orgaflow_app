@@ -1,7 +1,23 @@
+
 import 'package:flutter/material.dart';
 
+import 'asset_manager_assets_page.dart' as assets;
+import 'asset_manager_requests_page.dart' as requests;
+import 'asset_manager_assign_page.dart' as assign;
+import 'asset_manager_transfer_page.dart' as transfer;
+import 'asset_manager_maintenance_page.dart' as maintenance;
+import 'asset_manager_history_page.dart' as history;
+import 'asset_manager_reports_page.dart' as reports;
+import 'asset_manager_scan_page.dart' as scan;
+import 'asset_manager_profile_page.dart' as profile;
+
 class AssetManagerDashboard extends StatefulWidget {
-  const AssetManagerDashboard({super.key});
+  final Map<String, dynamic>? userData;
+
+  const AssetManagerDashboard({
+    super.key,
+    this.userData,
+  });
 
   @override
   State<AssetManagerDashboard> createState() =>
@@ -10,59 +26,56 @@ class AssetManagerDashboard extends StatefulWidget {
 
 class _AssetManagerDashboardState
     extends State<AssetManagerDashboard> {
-  int _selectedIndex = 0;
+  int selectedIndex = 0;
 
-  final List<String> _titles = [
-    'Asset Manager Dashboard',
-    'All Assets',
-    'Assign Assets',
-    'Asset Transfers',
+  final List<String> titles = [
+    'Dashboard',
+    'Assets',
+    'Requests',
+    'Assign Asset',
+    'Transfer Asset',
     'Maintenance',
     'Asset History',
-    'Asset Reports',
+    'Reports',
+    'Scan Asset',
+    'Profile',
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
-
-      // ================= APP BAR =================
+      backgroundColor: const Color(0xFFF6F8FC),
 
       appBar: AppBar(
-        elevation: 0,
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F2937),
+        elevation: 0,
+        foregroundColor: const Color(0xFF172033),
 
         title: Text(
-          _titles[_selectedIndex],
+          titles[selectedIndex],
           style: const TextStyle(
-            fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
 
         actions: [
           IconButton(
-            onPressed: () {
-              _showMessage('Notifications');
-            },
+            onPressed: _showNotifications,
             icon: const Icon(
               Icons.notifications_none,
             ),
           ),
 
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 14),
             child: CircleAvatar(
-              radius: 19,
-              backgroundColor: const Color(0xFF3B5BDB),
-              child: const Text(
-                'AM',
-                style: TextStyle(
+              backgroundColor: const Color(0xFF3157D5),
+              child: Text(
+                _getInitials(),
+                style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
                   fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
             ),
@@ -70,268 +83,134 @@ class _AssetManagerDashboardState
         ],
       ),
 
-      // ================= DRAWER =================
+      drawer: _buildDrawer(),
 
-      drawer: Drawer(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                55,
-                20,
-                25,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF3B5BDB),
-              ),
-
-              child: const Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.inventory_2_outlined,
-                      color: Color(0xFF3B5BDB),
-                      size: 34,
-                    ),
-                  ),
-
-                  SizedBox(height: 15),
-
-                  Text(
-                    'Asset Manager',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  SizedBox(height: 4),
-
-                  Text(
-                    'Asset & Resource Management',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _drawerItem(
-                    icon: Icons.dashboard_outlined,
-                    title: 'Dashboard',
-                    index: 0,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.devices_other_outlined,
-                    title: 'All Assets',
-                    index: 1,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.assignment_ind_outlined,
-                    title: 'Assign Assets',
-                    index: 2,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.swap_horiz_outlined,
-                    title: 'Asset Transfers',
-                    index: 3,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.build_outlined,
-                    title: 'Maintenance',
-                    index: 4,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.history_outlined,
-                    title: 'Asset History',
-                    index: 5,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.bar_chart_outlined,
-                    title: 'Asset Reports',
-                    index: 6,
-                  ),
-
-                  const Divider(),
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.qr_code_scanner,
-                    ),
-                    title: const Text(
-                      'Scan Asset',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showMessage(
-                        'QR / Barcode Scanner',
-                      );
-                    },
-                  ),
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.notifications_none,
-                    ),
-                    title: const Text(
-                      'Notifications',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showMessage(
-                        'Notifications',
-                      );
-                    },
-                  ),
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.person_outline,
-                    ),
-                    title: const Text(
-                      'Profile',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showMessage('Profile');
-                    },
-                  ),
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.logout,
-                      color: Colors.red,
-                    ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(
-                        color: Colors.red,
-                      ),
-                    ),
-                    onTap: () {
-                      _logout();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      body: _buildBody(),
+      body: _buildPage(),
     );
   }
 
-  // =================================================
-  // BODY
-  // =================================================
+  // ============================================================
+  // PAGE ROUTER
+  // ============================================================
 
-  Widget _buildBody() {
-    switch (_selectedIndex) {
+  Widget _buildPage() {
+    switch (selectedIndex) {
       case 1:
-        return _allAssetsPage();
+        return assets.AssetManagerAssetsPage(
+          userData: widget.userData,
+        );
 
       case 2:
-        return _assignAssetsPage();
+        return requests.AssetManagerRequestsPage(
+          userData: widget.userData,
+        );
 
       case 3:
-        return _transferAssetsPage();
+        return assign.AssetManagerAssignPage(
+          userData: widget.userData,
+        );
 
       case 4:
-        return _maintenancePage();
+        return transfer.AssetManagerTransferPage(
+          userData: widget.userData,
+        );
 
       case 5:
-        return _historyPage();
+        return maintenance.AssetManagerMaintenancePage(
+          userData: widget.userData,
+        );
 
       case 6:
-        return _reportsPage();
+        return history.AssetManagerHistoryPage(
+          userData: widget.userData,
+        );
 
+      case 7:
+        return reports.AssetManagerReportsPage(
+          userData: widget.userData,
+        );
+
+      case 8:
+        return scan.AssetManagerScanPage(
+          userData: widget.userData,
+        );
+
+      case 9:
+        return profile.AssetManagerProfilePage(
+          userData: widget.userData,
+        );
+
+      case 0:
       default:
-        return _dashboardPage();
+        return _buildDashboard();
     }
   }
 
-  // =================================================
+  // ============================================================
   // DASHBOARD
-  // =================================================
+  // ============================================================
 
-  Widget _dashboardPage() {
+  Widget _buildDashboard() {
+    final name =
+        widget.userData?['name']?.toString() ??
+        'Asset Manager';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
+
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
-          const Text(
-            'Welcome, Asset Manager 👋',
-            style: TextStyle(
+          Text(
+            'Welcome, $name 👋',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: Color(0xFF172033),
             ),
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
 
           const Text(
             'Manage and track organization assets.',
             style: TextStyle(
-              color: Colors.grey,
+              color: Color(0xFF6B7280),
               fontSize: 14,
             ),
           ),
 
           const SizedBox(height: 22),
 
-          // ================= STAT CARDS =================
-
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics:
                 const NeverScrollableScrollPhysics(),
-
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-
-            childAspectRatio: 1.35,
+            childAspectRatio: 1.4,
 
             children: [
               _statCard(
                 title: 'Total Assets',
                 value: '356',
-                icon: Icons.devices_other,
+                icon: Icons.devices_other_outlined,
               ),
 
               _statCard(
                 title: 'Assigned',
                 value: '291',
-                icon: Icons.assignment_turned_in,
+                icon:
+                    Icons.assignment_turned_in_outlined,
               ),
 
               _statCard(
                 title: 'Available',
                 value: '65',
-                icon: Icons.inventory_2_outlined,
+                icon:
+                    Icons.inventory_2_outlined,
               ),
 
               _statCard(
@@ -342,285 +221,92 @@ class _AssetManagerDashboardState
             ],
           ),
 
-          const SizedBox(height: 25),
+          const SizedBox(height: 28),
 
           const Text(
             'Quick Actions',
             style: TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.bold,
+              color: Color(0xFF172033),
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          _quickAction(
-            icon: Icons.add_box_outlined,
-            title: 'Add New Asset',
+          _actionCard(
+            icon: Icons.devices_other_outlined,
+            title: 'All Assets',
             subtitle:
-                'Register a new organization asset',
-            onTap: () {
-              _showMessage('Add New Asset');
-            },
+                'View and manage organization assets',
+            onTap: () => _changePage(1),
           ),
 
-          _quickAction(
-            icon: Icons.assignment_ind_outlined,
+          _actionCard(
+            icon:
+                Icons.pending_actions_outlined,
+            title: 'Employee Requests',
+            subtitle:
+                'Review pending asset requests',
+            onTap: () => _changePage(2),
+          ),
+
+          _actionCard(
+            icon:
+                Icons.assignment_ind_outlined,
             title: 'Assign Asset',
             subtitle:
-                'Assign an asset to an employee',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 2;
-              });
-            },
+                'Assign an available asset',
+            onTap: () => _changePage(3),
           ),
 
-          _quickAction(
+          _actionCard(
+            icon: Icons.swap_horiz_outlined,
+            title: 'Transfer Asset',
+            subtitle:
+                'Transfer asset between employees',
+            onTap: () => _changePage(4),
+          ),
+
+          _actionCard(
+            icon: Icons.build_outlined,
+            title: 'Maintenance',
+            subtitle:
+                'Manage asset maintenance',
+            onTap: () => _changePage(5),
+          ),
+
+          _actionCard(
+            icon: Icons.history_outlined,
+            title: 'Asset History',
+            subtitle:
+                'View asset assignment history',
+            onTap: () => _changePage(6),
+          ),
+
+          _actionCard(
+            icon: Icons.bar_chart_outlined,
+            title: 'Reports',
+            subtitle:
+                'View asset reports and analytics',
+            onTap: () => _changePage(7),
+          ),
+
+          _actionCard(
             icon: Icons.qr_code_scanner,
             title: 'Scan Asset',
             subtitle:
                 'Scan QR code or barcode',
-            onTap: () {
-              _showMessage(
-                'QR / Barcode Scanner',
-              );
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.build_outlined,
-            title: 'Maintenance',
-            subtitle:
-                'Check assets under maintenance',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 4;
-              });
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.bar_chart_outlined,
-            title: 'Asset Reports',
-            subtitle:
-                'View asset usage and status reports',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 6;
-              });
-            },
+            onTap: () => _changePage(8),
           ),
         ],
       ),
     );
   }
 
-  // =================================================
-  // ALL ASSETS
-  // =================================================
-
-  Widget _allAssetsPage() {
-    return _simplePage(
-      icon: Icons.devices_other_outlined,
-      title: 'All Assets',
-      subtitle:
-          'View, add and manage organization assets.',
-      buttonText: 'Add Asset',
-    );
-  }
-
-  // =================================================
-  // ASSIGN ASSETS
-  // =================================================
-
-  Widget _assignAssetsPage() {
-    return _simplePage(
-      icon: Icons.assignment_ind_outlined,
-      title: 'Assign Assets',
-      subtitle:
-          'Assign available assets to employees.',
-      buttonText: 'Assign Asset',
-    );
-  }
-
-  // =================================================
-  // TRANSFER ASSETS
-  // =================================================
-
-  Widget _transferAssetsPage() {
-    return _simplePage(
-      icon: Icons.swap_horiz_outlined,
-      title: 'Asset Transfers',
-      subtitle:
-          'Transfer assets between employees or departments.',
-      buttonText: 'Transfer Asset',
-    );
-  }
-
-  // =================================================
-  // MAINTENANCE
-  // =================================================
-
-  Widget _maintenancePage() {
-    return _simplePage(
-      icon: Icons.build_outlined,
-      title: 'Maintenance',
-      subtitle:
-          'Track and manage asset maintenance.',
-      buttonText: 'View Maintenance',
-    );
-  }
-
-  // =================================================
-  // HISTORY
-  // =================================================
-
-  Widget _historyPage() {
-    return _simplePage(
-      icon: Icons.history_outlined,
-      title: 'Asset History',
-      subtitle:
-          'View assignment, transfer and maintenance history.',
-      buttonText: 'View History',
-    );
-  }
-
-  // =================================================
-  // REPORTS
-  // =================================================
-
-  Widget _reportsPage() {
-    return _simplePage(
-      icon: Icons.bar_chart_outlined,
-      title: 'Asset Reports',
-      subtitle:
-          'View organization asset reports and statistics.',
-      buttonText: 'Generate Report',
-    );
-  }
-
-  // =================================================
-  // SIMPLE PAGE
-  // =================================================
-
-  Widget _simplePage({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String buttonText,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 70,
-              color: const Color(0xFF3B5BDB),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                _showMessage(buttonText);
-              },
-              icon: const Icon(
-                Icons.arrow_forward,
-              ),
-              label: Text(buttonText),
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(0xFF3B5BDB),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // =================================================
-  // DRAWER ITEM
-  // =================================================
-
-  Widget _drawerItem({
-    required IconData icon,
-    required String title,
-    required int index,
-  }) {
-    final bool selected =
-        _selectedIndex == index;
-
-    return ListTile(
-      selected: selected,
-
-      selectedTileColor:
-          const Color(0xFFE8EDFF),
-
-      leading: Icon(
-        icon,
-        color: selected
-            ? const Color(0xFF3B5BDB)
-            : Colors.grey.shade700,
-      ),
-
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: selected
-              ? FontWeight.bold
-              : FontWeight.normal,
-          color: selected
-              ? const Color(0xFF3B5BDB)
-              : Colors.black87,
-        ),
-      ),
-
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  // =================================================
+  // ============================================================
   // STAT CARD
-  // =================================================
+  // ============================================================
 
   Widget _statCard({
     required String title,
@@ -633,14 +319,15 @@ class _AssetManagerDashboardState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius:
-            BorderRadius.circular(15),
+            BorderRadius.circular(16),
 
         boxShadow: [
           BoxShadow(
             color:
-                Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+                Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset:
+                const Offset(0, 3),
           ),
         ],
       ),
@@ -648,10 +335,12 @@ class _AssetManagerDashboardState
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
+
         children: [
           Icon(
             icon,
-            color: const Color(0xFF3B5BDB),
+            color:
+                const Color(0xFF3157D5),
             size: 28,
           ),
 
@@ -661,14 +350,18 @@ class _AssetManagerDashboardState
             value,
             style: const TextStyle(
               fontSize: 25,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
+              color:
+                  Color(0xFF172033),
             ),
           ),
 
           Text(
             title,
             style: const TextStyle(
-              color: Colors.grey,
+              color:
+                  Color(0xFF6B7280),
               fontSize: 13,
             ),
           ),
@@ -677,11 +370,11 @@ class _AssetManagerDashboardState
     );
   }
 
-  // =================================================
-  // QUICK ACTION
-  // =================================================
+  // ============================================================
+  // ACTION CARD
+  // ============================================================
 
-  Widget _quickAction({
+  Widget _actionCard({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -689,10 +382,19 @@ class _AssetManagerDashboardState
   }) {
     return Card(
       elevation: 0,
+      color: Colors.white,
+
       margin:
           const EdgeInsets.only(bottom: 10),
 
+      shape: RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(14),
+      ),
+
       child: ListTile(
+        onTap: onTap,
+
         contentPadding:
             const EdgeInsets.symmetric(
           horizontal: 15,
@@ -706,87 +408,393 @@ class _AssetManagerDashboardState
           child: Icon(
             icon,
             color:
-                const Color(0xFF3B5BDB),
+                const Color(0xFF3157D5),
           ),
         ),
 
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight:
+                FontWeight.bold,
+            color:
+                Color(0xFF172033),
           ),
         ),
 
-        subtitle: Text(subtitle),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(
+            color:
+                Color(0xFF6B7280),
+          ),
+        ),
 
-        trailing:
-            const Icon(Icons.chevron_right),
-
-        onTap: onTap,
-      ),
-    );
-  }
-
-  // =================================================
-  // MESSAGE
-  // =================================================
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '$message screen will open here.',
+        trailing: const Icon(
+          Icons.chevron_right,
         ),
       ),
     );
   }
 
-  // =================================================
-  // LOGOUT
-  // =================================================
+  // ============================================================
+  // DRAWER
+  // ============================================================
 
-  void _logout() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Logout'),
+  Widget _buildDrawer() {
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
 
-          content: const Text(
-            'Are you sure you want to logout?',
-          ),
+          children: [
+            Container(
+              height: 190,
 
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => false,
-                );
-              },
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.fromLTRB(
+                20,
+                25,
+                20,
+                20,
               ),
 
-              child: const Text('Logout'),
+              color:
+                  const Color(0xFF3157D5),
+
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor:
+                        Colors.white,
+
+                    child: Text(
+                      _getInitials(),
+                      style:
+                          const TextStyle(
+                        color:
+                            Color(0xFF3157D5),
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Asset Manager',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 2),
+
+                  const Text(
+                    'Asset & Resource Management',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            _drawerItem(
+              Icons.dashboard_outlined,
+              'Dashboard',
+              0,
+            ),
+
+            _drawerItem(
+              Icons.devices_other_outlined,
+              'Assets',
+              1,
+            ),
+
+            _drawerItem(
+              Icons.pending_actions_outlined,
+              'Requests',
+              2,
+            ),
+
+            _drawerItem(
+              Icons.assignment_ind_outlined,
+              'Assign Asset',
+              3,
+            ),
+
+            _drawerItem(
+              Icons.swap_horiz_outlined,
+              'Transfer Asset',
+              4,
+            ),
+
+            _drawerItem(
+              Icons.build_outlined,
+              'Maintenance',
+              5,
+            ),
+
+            _drawerItem(
+              Icons.history_outlined,
+              'Asset History',
+              6,
+            ),
+
+            _drawerItem(
+              Icons.bar_chart_outlined,
+              'Reports',
+              7,
+            ),
+
+            _drawerItem(
+              Icons.qr_code_scanner,
+              'Scan Asset',
+              8,
+            ),
+
+            _drawerItem(
+              Icons.person_outline,
+              'Profile',
+              9,
+            ),
+
+            const Divider(),
+
+            ListTile(
+              leading: const Icon(
+                Icons.logout,
+                color: Colors.red,
+              ),
+
+              title: const Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+
+              onTap: _logout,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DRAWER ITEM
+  // ============================================================
+
+  Widget _drawerItem(
+    IconData icon,
+    String title,
+    int index,
+  ) {
+    final selected =
+        selectedIndex == index;
+
+    return ListTile(
+      selected: selected,
+
+      selectedTileColor:
+          const Color(0xFFE8EDFF),
+
+      leading: Icon(
+        icon,
+
+        color: selected
+            ? const Color(0xFF3157D5)
+            : Colors.grey.shade700,
+      ),
+
+      title: Text(
+        title,
+
+        style: TextStyle(
+          fontWeight: selected
+              ? FontWeight.bold
+              : FontWeight.normal,
+
+          color: selected
+              ? const Color(0xFF3157D5)
+              : Colors.black87,
+        ),
+      ),
+
+      onTap: () {
+        setState(() {
+          selectedIndex = index;
+        });
+
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  // ============================================================
+  // INITIALS
+  // ============================================================
+
+  String _getInitials() {
+    final name =
+        widget.userData?['name']
+            ?.toString();
+
+    if (name == null ||
+        name.trim().isEmpty) {
+      return 'AM';
+    }
+
+    final parts =
+        name.trim().split(
+          RegExp(r'\s+'),
+        );
+
+    if (parts.length == 1) {
+      return parts[0]
+          .substring(0, 1)
+          .toUpperCase();
+    }
+
+    return '${parts.first.substring(0, 1)}'
+            '${parts.last.substring(0, 1)}'
+        .toUpperCase();
+  }
+
+  // ============================================================
+  // PAGE CHANGE
+  // ============================================================
+
+  void _changePage(int index) {
+    setState(() {
+      selectedIndex = index;
+    });
+  }
+
+  // ============================================================
+  // NOTIFICATIONS
+  // ============================================================
+
+  void _showNotifications() {
+    showModalBottomSheet(
+      context: context,
+
+      backgroundColor:
+          Colors.white,
+
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
+          top: Radius.circular(22),
+        ),
+      ),
+
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.all(20),
+
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+              children: [
+                const Text(
+                  'Notifications',
+                  style:
+                      TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                ListTile(
+                  leading:
+                      const CircleAvatar(
+                    backgroundColor:
+                        Color(0xFFE8EDFF),
+                    child: Icon(
+                      Icons
+                          .pending_actions,
+                      color:
+                          Color(0xFF3157D5),
+                    ),
+                  ),
+
+                  title: const Text(
+                    'New asset request',
+                  ),
+
+                  subtitle:
+                      const Text(
+                    'An employee has requested an asset.',
+                  ),
+                ),
+
+                ListTile(
+                  leading:
+                      const CircleAvatar(
+                    backgroundColor:
+                        Color(0xFFFFF4E5),
+                    child: Icon(
+                      Icons.build_outlined,
+                      color:
+                          Colors.orange,
+                    ),
+                  ),
+
+                  title: const Text(
+                    'Maintenance required',
+                  ),
+
+                  subtitle:
+                      const Text(
+                    'Some assets require maintenance.',
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
+    );
+  }
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
+  void _logout() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/',
+      (route) => false,
     );
   }
 }
