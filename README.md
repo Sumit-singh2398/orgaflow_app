@@ -1,37 +1,184 @@
-# 🚀 Orgaflow
+# 🏢 Orgaflow — Enterprise Asset & Resource Management Platform
 
-### Smart Organization Asset Management Platform
+[![Flutter](https://img.shields.io/badge/Flutter-3.35.3-02569B?logo=flutter\&logoColor=white)](https://flutter.dev/)
+[![Dart](https://img.shields.io/badge/Dart-3.9.2-0175C2?logo=dart\&logoColor=white)](https://dart.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi\&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql\&logoColor=white)](https://www.postgresql.org/)
+[![JWT](https://img.shields.io/badge/Auth-JWT-black?logo=jsonwebtokens\&logoColor=white)](https://jwt.io/)
+[![Google OAuth](https://img.shields.io/badge/Auth-Google%20OAuth-4285F4?logo=google\&logoColor=white)](https://developers.google.com/identity)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker\&logoColor=white)](https://www.docker.com/)
+[![REST API](https://img.shields.io/badge/API-REST-FF6C37?logo=postman\&logoColor=white)](#)
+[![Vercel](https://img.shields.io/badge/Web-Vercel-black?logo=vercel\&logoColor=white)](https://vercel.com/)
+[![GitHub](https://img.shields.io/badge/Source-GitHub-181717?logo=github\&logoColor=white)](https://github.com/)
+[![Status](https://img.shields.io/badge/Status-Active%20Development-success)](#)
 
-**Orgaflow** is a full-stack organization asset management platform designed to help companies manage employees, organizational assets, asset requests, approvals, maintenance, and role-based access from a single system.
-
-The platform provides separate experiences for **Employees, Asset Managers, Department Heads, and Administrators**, with a Flutter mobile frontend and a FastAPI + PostgreSQL backend.
-
----
-
-## 📌 Project Overview
-
-Organizations often manage laptops, smartphones, cameras, projectors, networking devices, UPS systems, displays, and other equipment using spreadsheets or disconnected systems.
-
-Orgaflow aims to solve this problem by providing a centralized digital asset management platform where:
-
-* Employees can view available and assigned assets.
-* Employees can submit asset requests.
-* Employees can track their requests.
-* Asset Managers can review and process employee requests.
-* Managers can approve or reject requests.
-* Rejection requires a proper reason.
-* Request status is stored permanently in PostgreSQL.
-* Role-based authorization protects management functionality.
-* Authentication is handled using JWT and Google OAuth.
-* Backend APIs provide communication between the Flutter application and PostgreSQL database.
+> **Orgaflow** is a full-stack Enterprise Asset & Resource Management Platform designed to centralize organizational assets, employee requests, approvals, assignments, maintenance, departments, and operational workflows into one secure system.
+>
+> The platform combines a **Flutter + Dart frontend**, **FastAPI backend**, **PostgreSQL database**, **JWT authentication**, **Google OAuth**, **role-based access control**, and **Docker-based backend infrastructure** to provide a scalable foundation for modern organizational asset management.
 
 ---
 
-# 🎯 MVP
+## 📑 Table of Contents
+
+* [Overview](#-overview)
+* [Problem Statement](#-problem-statement)
+* [Project Vision](#-project-vision)
+* [MVP](#-mvp)
+* [Key Features](#-key-features)
+* [User Roles & RBAC](#-user-roles--rbac)
+* [Employee Portal](#-employee-portal)
+* [Asset Manager Portal](#-asset-manager-portal)
+* [Department Head Portal](#-department-head-portal)
+* [Admin Portal](#-admin-portal)
+* [Asset Lifecycle](#-asset-lifecycle)
+* [Request Management](#-request-management)
+* [Maintenance Management](#-maintenance-management)
+* [Authentication & Security](#-authentication--security)
+* [Google OAuth](#-google-oauth)
+* [JWT Authorization](#-jwt-authorization)
+* [System Architecture](#-system-architecture)
+* [Frontend Architecture](#-frontend-architecture)
+* [Backend Architecture](#-backend-architecture)
+* [Database Architecture](#-database-architecture)
+* [REST API](#-rest-api)
+* [Database Schema](#-database-schema)
+* [Request Workflow](#-request-workflow)
+* [Security Architecture](#-security-architecture)
+* [Docker Architecture](#-docker-architecture)
+* [Deployment Architecture](#-deployment-architecture)
+* [Analytics & Reporting](#-analytics--reporting)
+* [Notifications](#-notifications)
+* [Project Structure](#-project-structure)
+* [Technology Stack](#-technology-stack)
+* [Development Status](#-development-status)
+* [Roadmap](#-roadmap)
+* [Future Enterprise Architecture](#-future-enterprise-architecture)
+* [Developer](#-developer)
+* [License](#-license)
+
+---
+
+# 🌐 Overview
+
+Organizations manage hundreds or thousands of resources such as:
+
+* Laptops
+* Smartphones
+* Tablets
+* Cameras
+* Projectors
+* Displays
+* Networking equipment
+* UPS systems
+* Office equipment
+* Department resources
+* Other organizational hardware
+
+Traditional asset management often depends on:
+
+```text
+Spreadsheets
+     +
+Emails
+     +
+Manual Approvals
+     +
+Disconnected Records
+     +
+Manual Maintenance Tracking
+```
+
+This creates problems such as:
+
+* Duplicate records
+* Missing asset information
+* Delayed approvals
+* Poor visibility
+* Difficult asset tracking
+* Lack of accountability
+* No centralized request workflow
+* Difficult maintenance management
+
+**Orgaflow** brings these workflows together into a centralized platform.
+
+---
+
+# 🎯 Problem Statement
+
+The objective of Orgaflow is to create a centralized system where an organization can manage the complete lifecycle of its resources.
+
+Instead of maintaining separate records for:
+
+```text
+Employees
+Assets
+Requests
+Approvals
+Departments
+Maintenance
+Assignments
+History
+```
+
+Orgaflow provides a connected ecosystem:
+
+```text
+Employee
+   ↓
+Asset Request
+   ↓
+Manager Review
+   ↓
+Approval / Rejection
+   ↓
+Asset Assignment
+   ↓
+Asset Usage
+   ↓
+Maintenance
+   ↓
+Return / Transfer
+   ↓
+Asset Retirement
+```
+
+---
+
+# 🚀 Project Vision
+
+Orgaflow is designed to evolve from an asset-request application into a complete **Enterprise Resource & Asset Management Platform**.
+
+The long-term vision is:
+
+```text
+                    ORGAFLOW
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+   Employees       Management          Admin
+       │               │                │
+       └───────────────┼────────────────┘
+                       │
+               Asset Management
+                       │
+             Request Management
+                       │
+              Asset Assignment
+                       │
+               Maintenance
+                       │
+                 Analytics
+                       │
+                  Audit Logs
+```
+
+---
+
+# ⭐ MVP
 
 The current MVP focuses on the complete employee asset-request workflow.
 
-### MVP Flow
+## Employee Workflow
 
 ```text
 Employee Login
@@ -40,381 +187,927 @@ Employee Dashboard
       ↓
 Available Assets
       ↓
-Select Asset
+Asset Details
       ↓
-Submit Asset Request
+Request Asset
       ↓
-FastAPI Backend
+Request Stored in PostgreSQL
       ↓
-PostgreSQL Database
+Track Request
+```
+
+## Management Workflow
+
+```text
+Management Login
       ↓
-Asset Manager Dashboard
+Asset Management Dashboard
       ↓
-Review Request
+Employee Requests
       ↓
- ┌───────────────┐
- │               │
-Approve       Not Approve
- │               │
- ↓               ↓
-Approved     Rejection Reason
- │               │
- └───────┬───────┘
-         ↓
- PostgreSQL
-         ↓
-Employee Track Requests
+Request Details
+      ↓
+Approve / Not Approve
+      ↓
+Database Update
+      ↓
+Employee Sees Updated Status
 ```
 
 ---
 
-# ✨ Core Features
+# ✨ Key Features
 
-## 👨‍💻 Employee Portal
+### 🔐 Authentication
+
+* Email/password authentication
+* Password hashing
+* JWT-based authentication
+* Google OAuth
+* Active-user validation
+* Role-aware login
+* Secure API authorization
+
+### 👥 User Management
+
+* Employee accounts
+* Management accounts
+* Role-based permissions
+* Department association
+* Account status
+* User profile management
+
+### 📦 Asset Management
+
+* Asset inventory
+* Asset identification
+* Asset categories
+* Asset brand/model
+* Asset availability
+* Asset assignment
+* Asset lifecycle tracking
+
+### 📝 Request Management
+
+* Employee asset requests
+* Request priority
+* Request descriptions
+* Unique request codes
+* Request status
+* Manager approval
+* Manager rejection
+* Rejection reason
+* Request history
+
+### 🛠️ Maintenance
+
+Designed for:
+
+* Maintenance schedules
+* Repair records
+* Maintenance history
+* Service records
+* Maintenance status
+* Maintenance costs
+
+### 📊 Analytics
+
+Designed to provide:
+
+* Total assets
+* Available assets
+* Assigned assets
+* Pending requests
+* Approved requests
+* Rejected requests
+* Maintenance statistics
+* Department-wise asset usage
+
+---
+
+# 👨‍💻 Employee Portal
+
+The Employee Portal provides employees with a dedicated workspace.
+
+## Employee Capabilities
 
 Employees can:
 
-* Register and log in.
-* Login using Google.
-* View their dashboard.
-* Browse available assets.
-* View asset information.
-* Submit asset requests.
-* Select request priority.
-* Add a request description.
-* Track submitted requests.
-* View request status.
-* View approval status.
-* View rejection reason when a request is not approved.
-* View their profile.
+* Register
+* Login
+* Login using Google
+* View dashboard
+* Browse available assets
+* View asset details
+* Submit asset requests
+* Select request priority
+* Add request description
+* Track requests
+* View request status
+* View rejection reason
+* View assigned assets
+* Manage profile
 
-### Employee Request Status
-
-```text
-Pending
-   ↓
- ┌───────────────┐
- ↓               ↓
-Approved     Not Approved
-                 ↓
-          Rejection Reason
-```
-
-Employees can only access their own requests.
-
-They cannot approve or reject requests.
-
----
-
-# 🧑‍💼 Asset Manager Portal
-
-Asset Managers can:
-
-* View employee asset requests.
-* View employee information.
-* View department.
-* View requested asset.
-* View asset category.
-* View brand and model.
-* View priority.
-* View employee description.
-* View request creation date.
-* Approve pending requests.
-* Reject pending requests.
-* Provide a rejection reason.
-* Track request status.
-* Refresh data directly from the backend.
-
-### Request Management
-
-A pending request can be processed as:
-
-```text
-Pending
-   │
-   ├── Approve
-   │      ↓
-   │   Approved
-   │
-   └── Not Approve
-          ↓
-   Rejection Reason
-          ↓
-      Not Approved
-```
-
----
-
-# 🔐 Role-Based Access Control
-
-Orgaflow is designed around role-based authorization.
-
-### Supported Roles
-
-| Role            | Access                           |
-| --------------- | -------------------------------- |
-| Employee        | Employee portal                  |
-| Asset Manager   | Asset/request management         |
-| Department Head | Management portal                |
-| Admin           | Administrative/management access |
-
-The selected portal and role are validated by the backend.
-
-Users cannot simply select a privileged role from the UI and gain management access.
-
-The backend validates the authenticated user's actual database role before allowing protected operations.
-
----
-
-# 🔑 Authentication
-
-Orgaflow supports:
-
-### Email & Password
-
-```text
-Email
-Password
-   ↓
-FastAPI
-   ↓
-Password Verification
-   ↓
-JWT Token
-   ↓
-Authenticated Session
-```
-
-Passwords are stored as hashes rather than plain text.
-
-### Google Authentication
-
-Google OAuth is also integrated for supported login flows.
-
-The backend verifies the Google identity token before creating/authenticating the user.
-
----
-
-# 🏗️ System Architecture
+### Employee Navigation
 
 ```text
 ┌─────────────────────────────┐
-│        Flutter App          │
+│       Employee Home         │
+├─────────────────────────────┤
 │                             │
-│  Employee Portal            │
-│  Asset Manager Portal       │
-│  Authentication             │
-│  Request Management         │
-└──────────────┬──────────────┘
-               │
-               │ REST API
-               ▼
-┌─────────────────────────────┐
-│        FastAPI Backend      │
+│  Home                       │
+│  Assets                     │
+│  My Requests                │
+│  My Assets                  │
+│  Profile                    │
 │                             │
-│ Authentication              │
-│ JWT Authorization            │
-│ Role Validation             │
-│ Asset Requests              │
-│ Request Approval             │
-│ Request Tracking             │
-└──────────────┬──────────────┘
-               │
-               │ SQL
-               ▼
-┌─────────────────────────────┐
-│        PostgreSQL           │
-│                             │
-│ users                       │
-│ oauth_users                 │
-│ asset_requests              │
-│ departments                 │
-│ assets / related data       │
 └─────────────────────────────┘
 ```
 
 ---
 
-# 🛠️ Tech Stack
+# 🧑‍💼 Asset Manager Portal
 
-## Frontend
+Asset Managers are responsible for operational asset and request management.
 
-* Flutter
-* Dart
-* Material UI
-* GetX
-* HTTP REST API
-* SharedPreferences
+## Capabilities
 
-## Backend
+* View employee requests
+* Search requests
+* Filter requests
+* View employee details
+* View department
+* View asset information
+* View priority
+* View request description
+* Approve requests
+* Reject requests
+* Enter rejection reason
+* Review request history
+* Monitor request statistics
+* Manage asset operations
 
-* Python
-* FastAPI
-* JWT
-* Passlib / bcrypt
-* Google OAuth verification
-* REST APIs
+### Manager Request Actions
 
-## Database
-
-* PostgreSQL
-
-## Development Tools
-
-* Android Studio
-* VS Code
-* Git
-* GitHub
-* Docker
-
-## Deployment
-
-Backend deployment is planned for a cloud environment such as Render.
+```text
+                Pending
+                   │
+          ┌────────┴────────┐
+          ↓                 ↓
+       Approve          Not Approve
+          │                 │
+          ↓                 ↓
+      Approved       Rejection Reason
+                            │
+                            ↓
+                      Not Approved
+```
 
 ---
 
-# 🗄️ Database
+# 🏢 Department Head Portal
 
-The backend uses PostgreSQL with the database:
+The Department Head role is designed for department-level management.
+
+Potential responsibilities include:
+
+* View department assets
+* View department employees
+* Review department requests
+* Monitor department asset usage
+* Approve department-level requirements
+* Monitor asset availability
+* Review department reports
+
+Department Heads operate within their authorized organizational scope.
+
+---
+
+# 👑 Admin Portal
+
+Administrators provide system-wide control.
+
+Admin capabilities are designed to include:
+
+* User management
+* Role management
+* Department management
+* Asset management
+* Request management
+* System configuration
+* Security monitoring
+* Audit logs
+* Organization-wide analytics
+
+The backend remains responsible for enforcing administrative permissions.
+
+---
+
+# 🔐 User Roles & RBAC
+
+Orgaflow uses **Role-Based Access Control (RBAC)**.
+
+### Supported Roles
+
+| Role            | Primary Responsibility      |
+| --------------- | --------------------------- |
+| Employee        | Request and track assets    |
+| Asset Manager   | Manage assets and requests  |
+| Department Head | Department-level management |
+| Admin           | System-wide administration  |
+
+---
+
+## RBAC Architecture
+
+```text
+                    Authentication
+                          │
+                          ↓
+                    JWT Validation
+                          │
+                          ↓
+                    User Lookup
+                          │
+                          ↓
+                    Database Role
+                          │
+             ┌────────────┼────────────┐
+             ↓            ↓            ↓
+         Employee      Manager       Admin
+             │            │            │
+             ↓            ↓            ↓
+        Employee       Management    System
+        Features       Features      Features
+```
+
+The frontend does not determine whether a user is an administrator.
+
+The backend validates the user's actual role.
+
+---
+
+# 📦 Asset Lifecycle
+
+Orgaflow is designed around the complete asset lifecycle.
+
+```text
+                    Asset Created
+                         │
+                         ↓
+                     Available
+                         │
+                         ↓
+                      Requested
+                         │
+                         ↓
+                     Approved
+                         │
+                         ↓
+                     Assigned
+                         │
+                         ↓
+                      In Use
+                         │
+                 ┌───────┴───────┐
+                 ↓               ↓
+             Maintenance       Returned
+                 │               │
+                 ↓               ↓
+             Available        Available
+                                 │
+                                 ↓
+                              Retired
+```
+
+---
+
+# 📝 Request Management
+
+Each employee request contains structured information.
+
+### Employee Information
+
+```text
+Employee Name
+Employee Email
+Department
+User ID
+```
+
+### Asset Information
+
+```text
+Asset ID
+Asset Name
+Category
+Brand
+Model
+```
+
+### Request Information
+
+```text
+Request Code
+Priority
+Description
+Status
+Created Date
+Updated Date
+Review Date
+Reviewer
+Rejection Reason
+```
+
+---
+
+# 🔄 Request Lifecycle
+
+Every request begins as:
+
+```text
+Pending
+```
+
+Management can then process the request.
+
+### Approved
+
+```text
+Pending → Approved
+```
+
+### Not Approved
+
+```text
+Pending → Not Approved
+```
+
+A rejection requires an explanation.
+
+Example:
+
+```text
+Not Approved
+
+Reason:
+"The requested asset is currently unavailable."
+```
+
+The reason is persisted in PostgreSQL and can be viewed by the employee.
+
+---
+
+# 🛠️ Maintenance Management
+
+The platform is designed to extend asset management into maintenance operations.
+
+### Maintenance Features
+
+* Maintenance scheduling
+* Repair tracking
+* Service history
+* Maintenance status
+* Service provider
+* Maintenance cost
+* Maintenance notes
+* Asset downtime
+* Maintenance completion
+
+### Maintenance Lifecycle
+
+```text
+Maintenance Required
+        ↓
+Maintenance Scheduled
+        ↓
+Under Maintenance
+        ↓
+Repair Completed
+        ↓
+Quality Check
+        ↓
+Available
+```
+
+---
+
+# 🔐 Authentication & Security
+
+Security is implemented across multiple layers.
+
+## Authentication
+
+Orgaflow supports:
+
+* Email/password authentication
+* Password hashing
+* JWT
+* Google OAuth
+
+## Authorization
+
+Authorization includes:
+
+* User role validation
+* Portal validation
+* Active account validation
+* Protected API endpoints
+* Management-only operations
+* Employee-specific request access
+
+---
+
+# 🔑 Google OAuth
+
+Google authentication is integrated into the authentication architecture.
+
+```text
+Google Sign-In
+      ↓
+Google Identity Token
+      ↓
+FastAPI Verification
+      ↓
+User Lookup
+      ↓
+Role Validation
+      ↓
+JWT Generation
+      ↓
+Authenticated Session
+```
+
+Google authentication does not automatically grant management privileges.
+
+The user's authorized role is controlled by backend/database rules.
+
+---
+
+# 🎫 JWT Authorization
+
+After successful authentication, the backend issues a JWT access token.
+
+Conceptually:
+
+```text
+User Credentials
+       ↓
+Authentication
+       ↓
+JWT
+       ↓
+Flutter Client
+       ↓
+Authorization Header
+       ↓
+FastAPI
+       ↓
+JWT Verification
+       ↓
+User & Role Validation
+       ↓
+Protected Resource
+```
+
+Protected operations require a valid authenticated identity.
+
+---
+
+# 🛡️ Security Model
+
+Orgaflow follows a **backend-first authorization model**.
+
+For example:
+
+```text
+Employee
+│
+├── View Own Requests       ✅
+├── Create Request          ✅
+├── View All Requests       ❌
+├── Approve Request         ❌
+└── Reject Request          ❌
+```
+
+```text
+Asset Manager
+│
+├── View Requests           ✅
+├── Review Requests         ✅
+├── Approve Request         ✅
+├── Reject Request          ✅
+└── Provide Rejection       ✅
+```
+
+This prevents security from depending only on hidden or disabled UI buttons.
+
+---
+
+# 🏗️ Full-Stack Architecture
+
+```mermaid
+flowchart TD
+
+    subgraph CLIENT["📱 Client Layer"]
+        FLUTTER["Flutter Application"]
+        DART["Dart"]
+        GETX["GetX State / Navigation"]
+        HTTP["REST API Client"]
+    end
+
+    subgraph AUTH["🔐 Authentication Layer"]
+        LOGIN["Login / Signup"]
+        GOOGLE["Google OAuth"]
+        JWT["JWT Authentication"]
+        RBAC["Role Based Access Control"]
+    end
+
+    subgraph BACKEND["⚡ FastAPI Backend"]
+        API["REST API"]
+        USERS["User Management"]
+        ASSETS["Asset Management"]
+        REQUESTS["Request Management"]
+        MAINT["Maintenance"]
+        ANALYTICS["Analytics"]
+        AUDIT["Audit / Activity"]
+    end
+
+    subgraph DATABASE["🗄️ PostgreSQL"]
+        USERDB[("Users")]
+        OAUTHDB[("OAuth Users")]
+        ASSETDB[("Assets")]
+        REQDB[("Asset Requests")]
+        DEPTDB[("Departments")]
+        MAINTDB[("Maintenance")]
+        AUDITDB[("Audit Logs")]
+    end
+
+    subgraph INFRA["🐳 Infrastructure"]
+        DOCKER["Docker"]
+        CLOUD["Cloud Deployment"]
+        VERCEL["Vercel Web Layer"]
+    end
+
+    FLUTTER --> DART
+    DART --> GETX
+    GETX --> HTTP
+    HTTP --> API
+
+    LOGIN --> JWT
+    GOOGLE --> JWT
+    JWT --> RBAC
+    RBAC --> API
+
+    API --> USERS
+    API --> ASSETS
+    API --> REQUESTS
+    API --> MAINT
+    API --> ANALYTICS
+    API --> AUDIT
+
+    USERS --> USERDB
+    USERS --> OAUTHDB
+    ASSETS --> ASSETDB
+    REQUESTS --> REQDB
+    USERS --> DEPTDB
+    MAINT --> MAINTDB
+    AUDIT --> AUDITDB
+
+    BACKEND --> DOCKER
+    DOCKER --> CLOUD
+    FLUTTER --> VERCEL
+```
+
+---
+
+# 📱 Frontend Architecture
+
+The frontend is built using Flutter and Dart.
+
+### Main Responsibilities
+
+* UI rendering
+* Navigation
+* Form handling
+* Authentication state
+* API communication
+* Request submission
+* Request tracking
+* Role-specific screens
+* Error handling
+* Loading states
+* User feedback
+
+### Frontend Flow
+
+```text
+Flutter UI
+    ↓
+User Action
+    ↓
+Validation
+    ↓
+HTTP REST Request
+    ↓
+FastAPI
+    ↓
+Response
+    ↓
+State Update
+    ↓
+UI Refresh
+```
+
+---
+
+# ⚡ Backend Architecture
+
+FastAPI acts as the central application layer.
+
+### Backend Responsibilities
+
+* Authentication
+* Password verification
+* JWT creation
+* JWT validation
+* Google token verification
+* Role authorization
+* Request validation
+* Business logic
+* PostgreSQL operations
+* Asset operations
+* Request processing
+* Management operations
+
+---
+
+# 🗄️ Database Architecture
+
+Primary database:
+
+**PostgreSQL**
+
+Database:
 
 ```text
 orgaflow_db
 ```
 
-### Users
+The relational database is designed to maintain persistent organizational records.
 
-The users table stores authentication and authorization information.
+---
 
-Example fields:
+# 📊 Database Schema
 
-```text
-id
-name
-email
-password_hash
-role
-department_id
-status
-created_at
-```
-
-### OAuth Users
-
-Google authentication mappings are stored separately.
-
-Example fields:
+## Users
 
 ```text
-user_id
-google_id
-email
-name
-portal
-role
-status
-```
-
-### Asset Requests
-
-The asset request system stores complete request information.
-
-Example fields:
-
-```text
-id
-request_code
-user_id
-employee_name
-employee_email
-department
-asset_id
-asset_name
-asset_category
-asset_brand
-asset_model
-priority
-description
-status
-rejection_reason
-created_at
-updated_at
-reviewed_at
-reviewed_by
+users
+│
+├── id
+├── name
+├── email
+├── password_hash
+├── role
+├── department_id
+├── status
+└── created_at
 ```
 
 ---
 
-# 🔄 Real-Time Request Workflow
+## OAuth Users
 
-When an employee submits a request, the Flutter application sends the request to the FastAPI backend.
-
-Example:
-
-```http
-POST /api/requests
+```text
+oauth_users
+│
+├── user_id
+├── google_id
+├── email
+├── name
+├── portal
+├── role
+└── status
 ```
-
-The backend:
-
-1. Authenticates the employee.
-2. Validates the JWT token.
-3. Gets the employee from PostgreSQL.
-4. Validates the request data.
-5. Creates a unique request code.
-6. Stores the request in PostgreSQL.
-7. Returns the created request.
-
-The Flutter app only displays success when the backend successfully creates the request.
 
 ---
 
-# 📡 API Endpoints
+## Departments
 
-## Authentication
+Conceptually:
 
-```http
+```text
+departments
+│
+├── id
+├── name
+├── head_id
+├── status
+└── created_at
+```
+
+---
+
+## Assets
+
+The asset inventory is designed to contain:
+
+```text
+assets
+│
+├── id
+├── asset_code
+├── name
+├── category
+├── brand
+├── model
+├── serial_number
+├── status
+├── department_id
+├── assigned_user_id
+├── location
+├── purchase_date
+├── warranty_end
+├── image
+├── created_at
+└── updated_at
+```
+
+---
+
+## Asset Requests
+
+```text
+asset_requests
+│
+├── id
+├── request_code
+├── user_id
+├── employee_name
+├── employee_email
+├── department
+├── asset_id
+├── asset_name
+├── asset_category
+├── asset_brand
+├── asset_model
+├── priority
+├── description
+├── status
+├── rejection_reason
+├── created_at
+├── updated_at
+├── reviewed_at
+└── reviewed_by
+```
+
+---
+
+## Maintenance
+
+Designed structure:
+
+```text
+maintenance_records
+│
+├── id
+├── asset_id
+├── issue
+├── description
+├── priority
+├── status
+├── assigned_to
+├── cost
+├── scheduled_date
+├── completed_date
+├── notes
+└── created_at
+```
+
+---
+
+## Audit Logs
+
+For future enterprise auditing:
+
+```text
+audit_logs
+│
+├── id
+├── user_id
+├── action
+├── entity_type
+├── entity_id
+├── description
+├── timestamp
+└── metadata
+```
+
+---
+
+# 🔗 Entity Relationships
+
+```text
+                    Department
+                        │
+              ┌─────────┴─────────┐
+              ↓                   ↓
+            Users              Assets
+              │                   │
+              │                   │
+              └────────┬──────────┘
+                       ↓
+                  Asset Requests
+                       │
+                       ↓
+                  Review / Approval
+                       │
+             ┌─────────┴─────────┐
+             ↓                   ↓
+         Approved           Not Approved
+             │                   │
+             ↓                   ↓
+      Asset Assignment     Rejection Reason
+```
+
+---
+
+# 📡 REST API Architecture
+
+Orgaflow uses RESTful APIs between the Flutter frontend and FastAPI backend.
+
+## Authentication APIs
+
+```text
 POST /api/auth/signup
 POST /api/auth/login
 POST /api/auth/google-login
 ```
 
-## Requests
+## Request APIs
 
-### Create Request
-
-```http
-POST /api/requests
+```text
+POST   /api/requests
+GET    /api/requests
+GET    /api/requests/my
+GET    /api/requests/{request_id}
+PATCH  /api/requests/{request_id}/status
+GET    /api/requests/stats
 ```
 
-### Get All Requests
+## Health / System APIs
 
-```http
-GET /api/requests
+```text
+GET /api/health
 ```
 
-Management users can use this endpoint to review requests.
+Additional asset, maintenance, analytics, and administration endpoints can be added as the platform expands.
 
-### Get Current Employee Requests
+---
 
-```http
-GET /api/requests/my
+# 📥 Request Creation API
+
+Example request payload:
+
+```json
+{
+  "asset_id": "AST-1001",
+  "asset_name": "Dell Latitude 5420",
+  "asset_category": "Laptop",
+  "asset_brand": "Dell",
+  "asset_model": "Latitude 5420",
+  "department": "IT",
+  "priority": "Normal",
+  "description": "Laptop required for development work."
+}
 ```
 
-Employees receive only their own requests.
+### Processing
 
-### Get Request Details
-
-```http
-GET /api/requests/{request_id}
+```text
+Request
+   ↓
+JWT Validation
+   ↓
+User Validation
+   ↓
+Role Validation
+   ↓
+Input Validation
+   ↓
+PostgreSQL Insert
+   ↓
+Request Code
+   ↓
+API Response
 ```
 
-### Update Request Status
+---
 
-```http
-PATCH /api/requests/{request_id}/status
-```
+# ✅ Approval API
 
-Example approval:
+Management can approve a pending request.
 
 ```json
 {
@@ -423,115 +1116,344 @@ Example approval:
 }
 ```
 
-Example rejection:
+The status is persisted in PostgreSQL.
+
+---
+
+# ❌ Rejection API
+
+Rejection requires a reason.
 
 ```json
 {
   "status": "Rejected",
-  "rejection_reason": "Asset is currently unavailable."
+  "rejection_reason": "The requested asset is currently unavailable."
 }
 ```
 
-### Request Statistics
+The rejection reason is stored with the request.
 
-```http
-GET /api/requests/stats
-```
+The employee can see it through the Track Requests module.
 
 ---
 
-# 🛡️ Backend Security
+# 🔍 Request Visibility
 
-The backend is responsible for authorization instead of trusting the Flutter UI.
+Orgaflow follows user-specific data access.
 
-Security mechanisms include:
+### Employee
 
-* JWT authentication
-* Password hashing
-* Active user validation
-* Role-based authorization
-* Protected management endpoints
-* Employee-specific request filtering
-* Request status validation
-* Rejection reason validation
-* Database persistence
-* Google identity-token verification
-
-For example, an employee cannot simply send:
-
-```json
-{
-  "role": "ADMIN"
-}
+```text
+GET /api/requests/my
 ```
 
-and gain administrator permissions.
+returns the authenticated employee's requests.
 
-The backend checks the user's actual role stored in the database.
+### Management
+
+```text
+GET /api/requests
+```
+
+provides management-level request visibility according to backend authorization.
+
+This prevents employees from accessing other employees' requests through the client application.
 
 ---
 
-# 📱 Application Screens
+# 🐳 Docker Architecture
+
+Docker is used as part of the backend infrastructure and deployment strategy.
+
+Conceptual architecture:
+
+```text
+             Docker Environment
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+     FastAPI App         PostgreSQL
+       Container            Database
+          │                   │
+          └─────────┬─────────┘
+                    │
+                 REST API
+                    │
+                 Flutter
+```
+
+### Benefits
+
+* Reproducible environment
+* Consistent dependencies
+* Easier deployment
+* Environment isolation
+* Simplified backend setup
+* Scalable infrastructure
+
+---
+
+# ☁️ Deployment Architecture
+
+Orgaflow is designed for cloud deployment.
+
+A production-oriented architecture can use:
+
+```text
+                    Users
+                      │
+                      ↓
+               Flutter / Web
+                      │
+                      ↓
+                  Vercel
+               Web Frontend
+                      │
+                      ↓
+                REST API
+                      │
+                      ↓
+               FastAPI Backend
+                      │
+                 Dockerized
+                      │
+                      ↓
+               Cloud Backend
+                      │
+                      ↓
+                PostgreSQL
+```
+
+### Deployment Components
+
+| Layer              | Technology               |
+| ------------------ | ------------------------ |
+| Mobile App         | Flutter                  |
+| Web Frontend       | Flutter Web / Vercel     |
+| Backend            | FastAPI                  |
+| Backend Container  | Docker                   |
+| Database           | PostgreSQL               |
+| Authentication     | JWT                      |
+| Social Login       | Google OAuth             |
+| Source Control     | GitHub                   |
+| Web Deployment     | Vercel                   |
+| Backend Deployment | Cloud container platform |
+
+The architecture keeps the frontend, backend, authentication, and database layers independently deployable.
+
+---
+
+# 📊 Analytics & Reporting
+
+Orgaflow is designed to provide management-level analytics.
+
+### Asset Analytics
+
+* Total assets
+* Available assets
+* Assigned assets
+* Under-maintenance assets
+* Retired assets
+* Department-wise assets
+
+### Request Analytics
+
+* Total requests
+* Pending requests
+* Approved requests
+* Not Approved requests
+* Approval rate
+* Department-wise requests
+* Priority distribution
+
+### Maintenance Analytics
+
+* Open maintenance cases
+* Completed maintenance
+* Maintenance costs
+* Asset downtime
+* Frequently repaired assets
+
+---
+
+# 🔔 Notification Architecture
+
+The platform can be extended with event-driven notifications.
+
+Example:
+
+```text
+Employee Creates Request
+        ↓
+Request Created
+        ↓
+Notification Event
+        ↓
+Asset Manager
+        ↓
+Review Request
+        ↓
+Decision
+        ↓
+Employee Notification
+```
+
+Future notification channels:
+
+* Push notifications
+* Email
+* In-app notifications
+* Administrative alerts
+
+---
+
+# 📜 Audit & Accountability
+
+Enterprise asset management requires accountability.
+
+Orgaflow is designed to maintain audit information such as:
+
+```text
+Who performed the action?
+What action was performed?
+Which asset/request was affected?
+When was the action performed?
+What was the previous state?
+What is the new state?
+```
+
+Example:
+
+```text
+User: Asset Manager
+Action: REQUEST_APPROVED
+Request: REQ-1001
+Time: 2026-10-04
+```
+
+This provides the foundation for enterprise audit trails.
+
+---
+
+# 🧠 Business Logic
+
+Important business rules are enforced by the backend.
+
+Examples:
+
+### Request Creation
+
+```text
+Authenticated User
+        ↓
+Valid User
+        ↓
+Allowed Role
+        ↓
+Valid Asset Request
+        ↓
+Create Pending Request
+```
+
+### Approval
+
+```text
+Pending Request
+       ↓
+Authorized Manager
+       ↓
+Approve
+       ↓
+Approved
+```
+
+### Rejection
+
+```text
+Pending Request
+       ↓
+Authorized Manager
+       ↓
+Rejection Reason Required
+       ↓
+Not Approved
+```
+
+A previously processed request should not be arbitrarily modified by unauthorized users.
+
+---
+
+# 🖥️ UI Modules
 
 ## Employee
 
-```text
-Login
-  ↓
-Employee Home
-  ↓
-Available Assets
-  ↓
-Asset Details
-  ↓
-Request Asset
-  ↓
-Track Requests
-  ↓
-Profile
-```
+1. Login
+2. Signup
+3. Employee Home
+4. Available Assets
+5. Asset Details
+6. Request Asset
+7. Track Requests
+8. My Assets
+9. Profile
 
 ## Asset Manager
 
-```text
-Management Login
-       ↓
-Asset Manager Dashboard
-       ↓
-Asset Requests
-       ↓
-Request Details
-       ↓
-Approve / Not Approve
-       ↓
-Request History
-```
+1. Management Login
+2. Dashboard
+3. Asset Management
+4. Employee Requests
+5. Request Details
+6. Approval Workflow
+7. History
+8. Maintenance
+
+## Department Head
+
+1. Department Dashboard
+2. Department Assets
+3. Department Requests
+4. Department Employees
+5. Department Analytics
+
+## Admin
+
+1. Admin Dashboard
+2. User Management
+3. Role Management
+4. Department Management
+5. Asset Management
+6. Request Management
+7. System Analytics
+8. Audit Logs
 
 ---
 
-# 📦 Example Assets
+# 🎨 UI/UX Design
 
-The application can manage different organizational assets such as:
+Orgaflow follows a modern enterprise dashboard approach.
 
-* Dell Latitude 5420
-* Samsung Galaxy A55
-* DSLR Camera
-* Tripod
-* Projector
-* Conference Room Display
-* UPS
-* Wi-Fi Router
+### Design Principles
 
-Assets contain information such as:
+* Clean interface
+* Professional dashboard
+* Consistent navigation
+* Role-specific UI
+* Clear status indicators
+* Structured information cards
+* Minimal visual clutter
+* Mobile-friendly design
+* Action-oriented workflows
+
+### Design Direction
 
 ```text
-Asset Name
-Asset ID
-Category
-Brand
-Model
-Status
-Image
+Modern
+Professional
+Clean
+Enterprise
+Scalable
+Mobile-Friendly
 ```
 
 ---
@@ -563,299 +1485,394 @@ orgaflow_app/
 │   └── main.dart
 │
 ├── orgaflow_backend/
+│   │
 │   ├── main.py
+│   ├── requirements.txt
+│   ├── Dockerfile
 │   └── ...
 │
-├── android/
 ├── assets/
+│
+├── android/
+│
 ├── pubspec.yaml
 ├── pubspec.lock
-└── README.md
+├── README.md
+└── .gitignore
 ```
 
 ---
 
-# 🚀 Running the Project Locally
+# 🧰 Technology Stack
 
-## 1. Clone Repository
+## Frontend
 
-```bash
-git clone https://github.com/Sumit-singh2398/orgaflow_app.git
-```
+* Flutter 3.35.3
+* Dart 3.9.2
+* Material UI
+* GetX
+* REST API integration
+* SharedPreferences
 
-```bash
-cd orgaflow_app
-```
+## Backend
+
+* Python
+* FastAPI
+* Uvicorn
+* Pydantic
+* REST APIs
+* Passlib
+* bcrypt
+* JWT
+* Google OAuth verification
+
+## Database
+
+* PostgreSQL
+* SQL
+* Relational database architecture
+
+## DevOps
+
+* Docker
+* Git
+* GitHub
+* Environment variables
+* Cloud deployment architecture
+
+## Deployment
+
+* Vercel for web frontend deployment
+* Container-based backend deployment
+* PostgreSQL cloud database
 
 ---
 
-# 2. Flutter Setup
+# 📌 Development Principles
 
-Install dependencies:
+Orgaflow follows several engineering principles:
 
-```bash
-flutter pub get
-```
-
-Run the application:
-
-```bash
-flutter run
-```
-
----
-
-# 3. PostgreSQL Setup
-
-Create the PostgreSQL database:
+### Separation of Concerns
 
 ```text
-orgaflow_db
+UI
+ ↓
+API Client
+ ↓
+Backend
+ ↓
+Business Logic
+ ↓
+Database
 ```
 
-Configure the database connection in the FastAPI backend.
+### Backend-First Security
 
-Example:
+Authorization is enforced at the backend rather than relying only on frontend restrictions.
 
-```text
-Host: localhost
-Port: 5432
-Database: orgaflow_db
-User: postgres
-```
+### Persistent Data
+
+Important application data is stored in PostgreSQL instead of depending on temporary UI state.
+
+### Modular Architecture
+
+Features are separated into individual modules and screens instead of placing the entire application inside a single file.
+
+### API-Driven Architecture
+
+The Flutter frontend communicates with the backend through REST APIs.
 
 ---
 
-# 4. Start FastAPI Backend
+# 📈 Development Status
 
-Navigate to:
-
-```bash
-cd orgaflow_backend
-```
-
-Run:
-
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Backend:
-
-```text
-http://127.0.0.1:8000
-```
-
-Swagger API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
-
-# 📱 Android Emulator
-
-For an Android emulator, the Flutter application can communicate with the local backend using:
-
-```text
-http://10.0.2.2:8000
-```
-
-For a physical Android device, use the computer's local IPv4 address:
-
-```text
-http://YOUR_PC_IP:8000
-```
-
-The FastAPI server should be started with:
-
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
+| Feature                       | Status |
+| ----------------------------- | ------ |
+| Flutter Application           | ✅      |
+| Dart Application              | ✅      |
+| Employee Portal               | ✅      |
+| Authentication UI             | ✅      |
+| Email/Password Authentication | ✅      |
+| Password Hashing              | ✅      |
+| JWT Authentication            | ✅      |
+| Google OAuth                  | ✅      |
+| PostgreSQL Integration        | ✅      |
+| FastAPI Backend               | ✅      |
+| REST API Layer                | ✅      |
+| Employee Asset Requests       | ✅      |
+| Persistent Request Storage    | ✅      |
+| Employee Request Tracking     | ✅      |
+| Asset Manager Requests        | ✅      |
+| Request Approval              | ✅      |
+| Request Rejection             | ✅      |
+| Rejection Reason              | ✅      |
+| Backend Role Authorization    | ✅      |
+| Docker Infrastructure         | 🚧     |
+| Complete Asset Inventory      | 🚧     |
+| Advanced Asset Assignment     | 🚧     |
+| Maintenance Management        | 🚧     |
+| Department Analytics          | 🚧     |
+| Audit Logs                    | 🚧     |
+| Notification System           | 🚧     |
+| Advanced Reporting            | 🚧     |
+| Production Cloud Deployment   | 🚧     |
 
 ---
 
-# 🐳 Docker
+# 🗺️ Roadmap
 
-Docker is part of the project development/deployment workflow.
+## Phase 1 — Core MVP
 
-The planned architecture is:
+* [x] Authentication
+* [x] Employee portal
+* [x] Google OAuth
+* [x] JWT
+* [x] PostgreSQL
+* [x] FastAPI
+* [x] Asset browsing
+* [x] Asset requests
+* [x] Request persistence
+* [x] Request tracking
+* [x] Manager approval
+* [x] Manager rejection
+* [x] Rejection reason
+* [x] RBAC
+
+---
+
+## Phase 2 — Complete Asset Operations
+
+* [ ] Asset inventory CRUD
+* [ ] Asset assignment
+* [ ] Asset return
+* [ ] Asset transfer
+* [ ] Asset replacement
+* [ ] Asset retirement
+* [ ] Serial number tracking
+* [ ] Warranty tracking
+* [ ] Location tracking
+
+---
+
+## Phase 3 — Maintenance
+
+* [ ] Maintenance tickets
+* [ ] Repair workflow
+* [ ] Maintenance schedules
+* [ ] Service records
+* [ ] Maintenance cost tracking
+* [ ] Asset downtime
+* [ ] Maintenance history
+
+---
+
+## Phase 4 — Analytics
+
+* [ ] Executive dashboard
+* [ ] Asset utilization
+* [ ] Department analytics
+* [ ] Request analytics
+* [ ] Maintenance analytics
+* [ ] Cost analytics
+* [ ] Advanced charts
+* [ ] Exportable reports
+
+---
+
+## Phase 5 — Enterprise
+
+* [ ] Audit logs
+* [ ] Notification engine
+* [ ] Email notifications
+* [ ] Push notifications
+* [ ] Advanced permission system
+* [ ] Multi-organization support
+* [ ] Organization isolation
+* [ ] Backup and recovery
+* [ ] Advanced security monitoring
+
+---
+
+# 🏢 Future Enterprise Architecture
+
+The long-term platform can evolve toward a multi-organization architecture.
 
 ```text
-Flutter Application
-       │
-       ▼
-FastAPI Container
-       │
-       ▼
-PostgreSQL
+                       ORGAFLOW
+                           │
+                ┌──────────┴──────────┐
+                │                     │
+          Organization A        Organization B
+                │                     │
+        ┌───────┼───────┐     ┌──────┼──────┐
+        │       │       │     │      │       │
+     Users   Assets  Requests Users Assets Requests
+        │       │       │     │      │       │
+        └───────┼───────┘     └──────┼──────┘
+                │                     │
+                └──────────┬──────────┘
+                           │
+                     Core Platform
+                           │
+             ┌─────────────┼─────────────┐
+             │             │             │
+           Auth         Analytics      Audit
+             │             │             │
+             └─────────────┼─────────────┘
+                           │
+                       PostgreSQL
 ```
 
-This makes the backend easier to reproduce and deploy across environments.
+This architecture could allow Orgaflow to support multiple organizations while maintaining logical separation between their users, assets, departments, and requests.
 
 ---
 
-# 📊 MVP Status
+# 📊 Example Asset Inventory
 
-| Feature                   | Status |
-| ------------------------- | ------ |
-| Flutter Application       | ✅      |
-| Employee Portal           | ✅      |
-| Authentication            | ✅      |
-| JWT Authentication        | ✅      |
-| Password Hashing          | ✅      |
-| Google OAuth              | ✅      |
-| PostgreSQL                | ✅      |
-| FastAPI Backend           | ✅      |
-| Employee Asset Requests   | ✅      |
-| Request Persistence       | ✅      |
-| Employee Request Tracking | ✅      |
-| Asset Manager Requests    | ✅      |
-| Approve Request           | ✅      |
-| Reject Request            | ✅      |
-| Rejection Reason          | ✅      |
-| Role-Based Authorization  | ✅      |
-| Docker Workflow           | 🚧     |
-| Cloud Deployment          | 🚧     |
-| Advanced Asset Inventory  | 🚧     |
-| Maintenance Management    | 🚧     |
-| Analytics Dashboard       | 🚧     |
+| Asset                   | Category        | Example Status |
+| ----------------------- | --------------- | -------------- |
+| Dell Latitude 5420      | Laptop          | Available      |
+| Samsung Galaxy A55      | Mobile          | Assigned       |
+| DSLR Camera             | Camera          | Available      |
+| Tripod                  | Equipment       | Available      |
+| Projector               | Display         | Maintenance    |
+| Conference Room Display | Display         | Assigned       |
+| UPS                     | Power Equipment | Available      |
+| Wi-Fi Router            | Networking      | Assigned       |
 
 ---
 
-# 🔮 Future Scope
+# 🔄 Complete Platform Lifecycle
 
-Orgaflow can be extended with:
-
-### Asset Inventory
-
-* Add new assets
-* Edit asset information
-* Assign assets
-* Transfer assets
-* Return assets
-* Retire assets
-* Asset lifecycle tracking
-
-### Maintenance
-
-* Maintenance scheduling
-* Maintenance history
-* Repair requests
-* Service provider records
-* Maintenance cost tracking
-
-### Notifications
-
-* Push notifications
-* Email notifications
-* Request approval notifications
-* Asset assignment notifications
-* Maintenance reminders
-
-### Analytics
-
-* Total assets
-* Available assets
-* Assigned assets
-* Pending requests
-* Approved requests
-* Rejected requests
-* Maintenance costs
-* Department-wise asset usage
-
-### Advanced Security
-
-* Refresh tokens
-* Audit logs
-* Permission-based authorization
-* Session management
-* Login activity
-* Security monitoring
-
----
-
-# 🎯 Project Goals
-
-Orgaflow is being developed with the following goals:
-
-* Reduce manual asset management.
-* Centralize organizational assets.
-* Improve request processing.
-* Provide transparent request tracking.
-* Reduce dependency on spreadsheets.
-* Provide secure role-based access.
-* Maintain reliable database records.
-* Create a scalable asset management platform.
+```text
+                    ┌──────────────┐
+                    │    Admin     │
+                    └──────┬───────┘
+                           │
+                    Create Organization
+                           │
+                           ↓
+                    Create Departments
+                           │
+                           ↓
+                     Add Employees
+                           │
+                           ↓
+                      Add Assets
+                           │
+                           ↓
+                    Asset Available
+                           │
+                           ↓
+                    Employee Request
+                           │
+                           ↓
+                    Manager Review
+                           │
+                 ┌─────────┴─────────┐
+                 ↓                   ↓
+             Approved            Rejected
+                 │                   │
+                 ↓                   ↓
+          Asset Assignment     Rejection Reason
+                 │
+                 ↓
+              In Use
+                 │
+                 ↓
+             Maintenance
+                 │
+                 ↓
+              Returned
+                 │
+                 ↓
+              Available
+                 │
+                 ↓
+               Retired
+```
 
 ---
 
 # 💡 Why Orgaflow?
 
-Traditional asset management can involve:
+Orgaflow is more than a simple asset listing application.
+
+It combines:
 
 ```text
-Excel Sheets
-     +
-Emails
-     +
-WhatsApp Messages
-     +
-Manual Approval
-     +
-Separate Records
+Authentication
+      +
+Role-Based Access
+      +
+Employee Management
+      +
+Asset Inventory
+      +
+Asset Requests
+      +
+Approval Workflow
+      +
+Asset Assignment
+      +
+Maintenance
+      +
+Analytics
+      +
+Auditability
 ```
 
-Orgaflow brings these workflows together:
-
-```text
-             ORGAFLOW
-                │
-     ┌──────────┼──────────┐
-     │          │          │
- Employees   Managers    Admin
-     │          │          │
-     └──────────┼──────────┘
-                │
-          Asset Database
-                │
-          Request System
-                │
-        Approval Workflow
-```
+The objective is to build a complete digital platform for organizational resource management.
 
 ---
 
-# 🧪 Development Approach
+# 🏆 Project Highlights
 
-The project follows a full-stack development approach:
+* Full-stack Flutter + FastAPI architecture
+* Modern Flutter mobile/web application
+* PostgreSQL relational database
+* JWT authentication
+* Google OAuth integration
+* Backend-enforced RBAC
+* Employee-specific request access
+* Manager approval workflow
+* Mandatory rejection reason
+* Persistent request data
+* Modular application structure
+* RESTful backend architecture
+* Docker-ready backend infrastructure
+* Cloud deployment architecture
+* Scalable database foundation
+* Enterprise-oriented asset lifecycle
+* Future maintenance and analytics modules
+
+---
+
+# 🧪 Engineering Focus
+
+Orgaflow is being developed with emphasis on:
 
 ```text
-Flutter UI
-    ↓
-REST API
-    ↓
-Authentication
-    ↓
-Authorization
-    ↓
-Business Logic
-    ↓
-PostgreSQL
+Scalability
+Security
+Maintainability
+Modularity
+Database Integrity
+API Design
+Role-Based Authorization
+User Experience
+Cloud Deployment
 ```
-
-The frontend is responsible for the user experience while the backend handles authentication, authorization, validation, business logic, and persistent data.
 
 ---
 
 # 👨‍💻 Developer
 
-**Sumit Singh**
+## Sumit Singh
 
-BCA Student | Flutter Developer | Full-Stack Developer
+**BCA Student | Flutter Developer | Full-Stack Developer**
 
-### Skills Used
+### Technical Skills Used
 
 ```text
 Flutter
@@ -863,55 +1880,75 @@ Dart
 Python
 FastAPI
 PostgreSQL
-Firebase
 REST APIs
 JWT
 Google OAuth
+Docker
 Git
 GitHub
-Docker
 ```
 
 ---
 
-# 📌 Project
+# 📌 Project Information
 
-**Project Name:** Orgaflow
-
-**Category:** Asset Management / Organization Management
-
-**Type:** Full-Stack Application
-
-**Frontend:** Flutter
-
-**Backend:** FastAPI
-
-**Database:** PostgreSQL
-
-**Authentication:** JWT + Google OAuth
-
-**Repository:** `orgaflow_app`
+| Property              | Details                                |
+| --------------------- | -------------------------------------- |
+| Project Name          | Orgaflow                               |
+| Type                  | Full-Stack Application                 |
+| Category              | Enterprise Asset & Resource Management |
+| Frontend              | Flutter                                |
+| Language              | Dart                                   |
+| Backend               | FastAPI                                |
+| Backend Language      | Python                                 |
+| Database              | PostgreSQL                             |
+| Authentication        | JWT + Google OAuth                     |
+| Authorization         | Role-Based Access Control              |
+| API                   | REST                                   |
+| Containerization      | Docker                                 |
+| Version Control       | Git / GitHub                           |
+| Web Deployment Target | Vercel                                 |
+| Backend Deployment    | Cloud Container Platform               |
+| Development Status    | Active Development                     |
 
 ---
 
-# ⭐ Contributing
+# 🤝 Contributing
 
-This project is currently under active development.
+Orgaflow is currently under active development.
 
-Suggestions, improvements, and feature ideas are welcome.
+Contributions, suggestions, bug reports, architecture improvements, and feature ideas are welcome.
 
-If you find an issue, please open an issue in the repository.
+### Contribution Flow
+
+```text
+Fork Repository
+      ↓
+Create Feature Branch
+      ↓
+Implement Feature
+      ↓
+Test Changes
+      ↓
+Commit
+      ↓
+Push
+      ↓
+Pull Request
+```
 
 ---
 
 # 📄 License
 
-This project is currently being developed as a student/portfolio project.
+This project is currently developed as a student and portfolio project.
 
-License information can be added when the project is released publicly.
+License information can be updated when Orgaflow is officially released as an open-source or commercial product.
 
 ---
 
-## 🚀 Orgaflow
+# 🚀 Orgaflow
 
-**Manage Assets. Simplify Requests. Empower Organizations.**
+### Manage Assets. Automate Requests. Empower Organizations.
+
+**Built with Flutter, Dart, FastAPI, PostgreSQL, JWT, Google OAuth and Docker.**
