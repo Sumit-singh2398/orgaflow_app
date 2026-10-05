@@ -68,7 +68,7 @@ JWT_SECRET = "orgaflow_super_secret_key_change_later"
 
 JWT_ALGORITHM = "HS256"
 
-JWT_EXPIRATION_MINUTES = 60 * 24
+JWT_EXPIRATION_MINUTES = 60*24*7
 
 
 # =========================================================
