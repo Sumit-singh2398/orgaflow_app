@@ -1,11 +1,98 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// ============================================================
+/// API CONFIG
+/// ============================================================
+///
+/// IMPORTANT:
+/// If you are using a REAL Android phone connected through USB:
+///
+///     adb reverse tcp:8000 tcp:8000
+///
+/// Then 127.0.0.1 will point to your laptop's FastAPI server.
+///
+/// If you use Android Emulator instead, use:
+///     http://10.0.2.2:8000
+///
+class ApiConfig {
+  static const String baseUrl = 'http://127.0.0.1:8000';
+
+  static const Duration requestTimeout = Duration(seconds: 30);
+}
+
+/// ============================================================
+/// AUTH STORAGE
+/// ============================================================
+
+class AuthStorage {
+  static const String _primaryKey = 'access_token';
+
+  static const List<String> _legacyKeys = [
+    'token',
+    'accessToken',
+    'jwt',
+  ];
+
+  static Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_primaryKey, token);
+
+    // Keep legacy keys synchronized in case old screens use them.
+    await prefs.setString('token', token);
+    await prefs.setString('accessToken', token);
+    await prefs.setString('jwt', token);
+  }
+
+  static Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // First check the new key.
+    final primaryToken = prefs.getString(_primaryKey);
+
+    if (primaryToken != null && primaryToken.trim().isNotEmpty) {
+      return primaryToken.trim();
+    }
+
+    // Check old keys.
+    for (final key in _legacyKeys) {
+      final token = prefs.getString(key);
+
+      if (token != null && token.trim().isNotEmpty) {
+        // Save it to the new key too.
+        await prefs.setString(_primaryKey, token.trim());
+        return token.trim();
+      }
+    }
+
+    return null;
+  }
+
+  static Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(_primaryKey);
+
+    for (final key in _legacyKeys) {
+      await prefs.remove(key);
+    }
+  }
+}
+
+/// ============================================================
+/// MY REQUEST PAGE
+/// ============================================================
+
 class MyRequest extends StatefulWidget {
   final Map<String, dynamic>? userData;
+
+  /// Asset selected from EmployeeAssetsPage.
   final Map<String, dynamic> asset;
 
   const MyRequest({
@@ -19,24 +106,6 @@ class MyRequest extends StatefulWidget {
 }
 
 class _MyRequestState extends State<MyRequest> {
-  static const Color primaryColor = Color(0xFF3157D5);
-  static const Color darkColor = Color(0xFF172033);
-  static const Color greyColor = Color(0xFF6B7280);
-  static const Color backgroundColor = Color(0xFFF6F8FC);
-
-  // ============================================================
-  // BACKEND URL
-  // ============================================================
-  //
-  // Android Emulator:
-  static const String baseUrl = 'http://10.0.2.2:8000';
-  //
-  // Real phone:
-  // static const String baseUrl = 'http://192.168.1.5:8000';
-  //
-  // Replace 192.168.1.5 with your PC IPv4 address.
-  // ============================================================
-
   final TextEditingController departmentController =
       TextEditingController();
 
@@ -47,890 +116,211 @@ class _MyRequestState extends State<MyRequest> {
 
   bool isSubmitting = false;
 
+  // ------------------------------------------------------------
+  // SAFE VALUE HELPERS
+  // ------------------------------------------------------------
+
+  String _stringValue(dynamic value) {
+    if (value == null) return '';
+
+    return value.toString().trim();
+  }
+
+  String get employeeName {
+    return _stringValue(
+      widget.userData?['name'],
+    ).isNotEmpty
+        ? _stringValue(widget.userData?['name'])
+        : 'Employee';
+  }
+
+  String get employeeEmail {
+    return _stringValue(
+      widget.userData?['email'],
+    );
+  }
+
+  String get userDepartment {
+    return _stringValue(
+      widget.userData?['department'],
+    );
+  }
+
+  String get assetName {
+    return _stringValue(
+      widget.asset['name'],
+    );
+  }
+
+  String get assetId {
+    return _stringValue(
+      widget.asset['assetId'] ??
+          widget.asset['asset_id'] ??
+          widget.asset['id'],
+    );
+  }
+
+  String get assetCategory {
+    return _stringValue(
+      widget.asset['category'] ??
+          widget.asset['assetCategory'] ??
+          widget.asset['asset_category'],
+    );
+  }
+
+  String get assetBrand {
+    return _stringValue(
+      widget.asset['brand'] ??
+          widget.asset['assetBrand'] ??
+          widget.asset['asset_brand'],
+    );
+  }
+
+  String get assetModel {
+    return _stringValue(
+      widget.asset['model'] ??
+          widget.asset['assetModel'] ??
+          widget.asset['asset_model'],
+    );
+  }
+
+  String get assetImage {
+    return _stringValue(
+      widget.asset['image'],
+    );
+  }
+
+  // ------------------------------------------------------------
+  // INIT
+  // ------------------------------------------------------------
+
   @override
   void initState() {
     super.initState();
 
-    final department =
-        widget.userData?['department']?.toString().trim() ?? '';
-
-    departmentController.text = department;
+    // Automatically fill department if available.
+    departmentController.text = userDepartment;
   }
+
+  // ------------------------------------------------------------
+  // DISPOSE
+  // ------------------------------------------------------------
 
   @override
   void dispose() {
     departmentController.dispose();
     descriptionController.dispose();
+
     super.dispose();
   }
 
-  // ============================================================
-  // EMPLOYEE DATA
-  // ============================================================
-
-  String get employeeName {
-    final name =
-        widget.userData?['name']?.toString().trim() ?? '';
-
-    return name.isNotEmpty ? name : 'Employee';
-  }
-
-  String get employeeEmail {
-    final email =
-        widget.userData?['email']?.toString().trim() ?? '';
-
-    return email;
-  }
-
-  // ============================================================
-  // ASSET DATA
-  // ============================================================
-
-  String get assetName {
-    return widget.asset['name']?.toString() ?? '';
-  }
-
-  String get assetId {
-    return widget.asset['assetId']?.toString() ?? '';
-  }
-
-  String get assetCategory {
-    return widget.asset['category']?.toString() ?? '';
-  }
-
-  String get assetBrand {
-    return widget.asset['brand']?.toString() ?? '';
-  }
-
-  String get assetModel {
-    return widget.asset['model']?.toString() ?? '';
-  }
-
-  String get assetImage {
-    return widget.asset['image']?.toString() ?? '';
-  }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: backgroundColor,
-
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-
-        title: const Text(
-          'Request Asset',
-          style: TextStyle(
-            color: darkColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        iconTheme: const IconThemeData(
-          color: darkColor,
-        ),
-      ),
-
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 700,
-              ),
-
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-                  _buildPageHeader(),
-
-                  const SizedBox(height: 22),
-
-                  _buildEmployeeSection(),
-
-                  const SizedBox(height: 18),
-
-                  _buildSelectedAssetCard(),
-
-                  const SizedBox(height: 18),
-
-                  _buildRequestForm(),
-
-                  const SizedBox(height: 24),
-
-                  _buildSubmitButton(),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // HEADER
-  // ============================================================
-
-  Widget _buildPageHeader() {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Submit Asset Request',
-          style: TextStyle(
-            fontSize: 27,
-            fontWeight: FontWeight.w800,
-            color: darkColor,
-          ),
-        ),
-
-        SizedBox(height: 7),
-
-        Text(
-          'Your request will be sent to Asset Management for review.',
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.4,
-            color: greyColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // EMPLOYEE SECTION
-  // ============================================================
-
-  Widget _buildEmployeeSection() {
-    return _buildSectionContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          const Text(
-            'Employee Information',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: darkColor,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          _buildReadOnlyField(
-            label: 'Employee Name',
-            value: employeeName,
-            icon: Icons.person_outline_rounded,
-          ),
-
-          if (employeeEmail.isNotEmpty) ...[
-            const SizedBox(height: 13),
-
-            _buildReadOnlyField(
-              label: 'Email',
-              value: employeeEmail,
-              icon: Icons.email_outlined,
-            ),
-          ],
-
-          const SizedBox(height: 13),
-
-          _buildTextField(
-            controller: departmentController,
-            label: 'Department',
-            hint: 'Enter your department',
-            icon: Icons.business_outlined,
-            mandatory: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // SELECTED ASSET
-  // ============================================================
-
-  Widget _buildSelectedAssetCard() {
-    return _buildSectionContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Requested Asset',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: darkColor,
-                  ),
-                ),
-              ),
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 5,
-                ),
-
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-
-                child: const Text(
-                  'Selected',
-                  style: TextStyle(
-                    color: primaryColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 15),
-
-          Container(
-            width: double.infinity,
-
-            padding: const EdgeInsets.all(14),
-
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FC),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE4E7EE),
-              ),
-            ),
-
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                _buildAssetImage(),
-
-                const SizedBox(width: 14),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-
-                    children: [
-                      Text(
-                        assetName.isNotEmpty
-                            ? assetName
-                            : 'Asset not selected',
-
-                        maxLines: 2,
-
-                        overflow: TextOverflow.ellipsis,
-
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: darkColor,
-                        ),
-                      ),
-
-                      const SizedBox(height: 7),
-
-                      Text(
-                        '$assetCategory • $assetId',
-
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: greyColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-
-                      if (assetBrand.isNotEmpty ||
-                          assetModel.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-
-                        Text(
-                          '$assetBrand $assetModel'.trim(),
-
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: greyColor,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 16,
-                color: greyColor,
-              ),
-
-              SizedBox(width: 7),
-
-              Expanded(
-                child: Text(
-                  'This asset was selected from Available Assets and cannot be changed here.',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.4,
-                    color: greyColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAssetImage() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-
-      child: SizedBox(
-        height: 75,
-        width: 75,
-
-        child: assetImage.isNotEmpty
-            ? Image.network(
-                assetImage,
-                fit: BoxFit.cover,
-
-                errorBuilder: (
-                  context,
-                  error,
-                  stackTrace,
-                ) {
-                  return _assetPlaceholder();
-                },
-              )
-            : _assetPlaceholder(),
-      ),
-    );
-  }
-
-  Widget _assetPlaceholder() {
-    return Container(
-      color: const Color(0xFFEDEFF5),
-
-      child: const Icon(
-        Icons.devices_rounded,
-        color: primaryColor,
-        size: 32,
-      ),
-    );
-  }
-
-  // ============================================================
-  // REQUEST DETAILS
-  // ============================================================
-
-  Widget _buildRequestForm() {
-    return _buildSectionContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          const Text(
-            'Request Details',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: darkColor,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            'Priority',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: darkColor,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              _buildPriorityOption('Normal'),
-
-              const SizedBox(width: 10),
-
-              _buildPriorityOption('Urgent'),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          _buildTextField(
-            controller: descriptionController,
-            label: 'Requirement / Reason',
-            hint: 'Why do you need this asset?',
-            icon: Icons.description_outlined,
-            mandatory: true,
-            maxLines: 5,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // PRIORITY
-  // ============================================================
-
-  Widget _buildPriorityOption(String value) {
-    final bool selected =
-        selectedPriority == value;
-
-    return Expanded(
-      child: InkWell(
-        onTap: isSubmitting
-            ? null
-            : () {
-                setState(() {
-                  selectedPriority = value;
-                });
-              },
-
-        borderRadius: BorderRadius.circular(12),
-
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 13,
-          ),
-
-          decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFFEEF2FF)
-                : Colors.white,
-
-            borderRadius: BorderRadius.circular(12),
-
-            border: Border.all(
-              color: selected
-                  ? primaryColor
-                  : const Color(0xFFE1E5EC),
-
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-
-          child: Row(
-            children: [
-              Icon(
-                selected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-
-                size: 19,
-
-                color: selected
-                    ? primaryColor
-                    : greyColor,
-              ),
-
-              const SizedBox(width: 8),
-
-              Text(
-                value,
-
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-
-                  color: selected
-                      ? primaryColor
-                      : darkColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // READ ONLY FIELD
-  // ============================================================
-
-  Widget _buildReadOnlyField({
-    required String label,
-    required String value,
-    required IconData icon,
+  // ------------------------------------------------------------
+  // MESSAGE
+  // ------------------------------------------------------------
+
+  void _showMessage(
+    String message, {
+    bool success = false,
   }) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+    if (!mounted) return;
 
-      children: [
-        _buildLabel(label, false),
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-        const SizedBox(height: 7),
-
-        Container(
-          width: double.infinity,
-
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 14,
-          ),
-
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F5F8),
-
-            borderRadius:
-                BorderRadius.circular(12),
-
-            border: Border.all(
-              color: const Color(0xFFE2E5EB),
-            ),
-          ),
-
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: greyColor,
-              ),
-
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: Text(
-                  value.isNotEmpty
-                      ? value
-                      : '-',
-
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: darkColor,
-                  ),
-                ),
-              ),
-
-              const Icon(
-                Icons.lock_outline_rounded,
-                size: 16,
-                color: Color(0xFF9AA0AC),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // TEXT FIELD
-  // ============================================================
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required bool mandatory,
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-
-      children: [
-        _buildLabel(label, mandatory),
-
-        const SizedBox(height: 7),
-
-        TextField(
-          controller: controller,
-
-          enabled: !isSubmitting,
-
-          maxLines: maxLines,
-
-          textInputAction: maxLines > 1
-              ? TextInputAction.newline
-              : TextInputAction.next,
-
-          decoration: InputDecoration(
-            hintText: hint,
-
-            hintStyle: const TextStyle(
-              color: Color(0xFF9AA0AC),
-              fontSize: 13,
-            ),
-
-            prefixIcon: Padding(
-              padding: EdgeInsets.only(
-                left: 12,
-                right: 8,
-                top: maxLines > 1 ? 12 : 0,
-              ),
-
-              child: Icon(
-                icon,
-                color: greyColor,
-                size: 20,
-              ),
-            ),
-
-            prefixIconConstraints:
-                const BoxConstraints(
-              minWidth: 48,
-            ),
-
-            filled: true,
-
-            fillColor: Colors.white,
-
-            contentPadding:
-                const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
-            ),
-
-            border: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(12),
-
-              borderSide: const BorderSide(
-                color: Color(0xFFE1E5EC),
-              ),
-            ),
-
-            enabledBorder: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(12),
-
-              borderSide: const BorderSide(
-                color: Color(0xFFE1E5EC),
-              ),
-            ),
-
-            focusedBorder: OutlineInputBorder(
-              borderRadius:
-                  BorderRadius.circular(12),
-
-              borderSide: const BorderSide(
-                color: primaryColor,
-                width: 1.5,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // LABEL
-  // ============================================================
-
-  Widget _buildLabel(
-    String label,
-    bool mandatory,
-  ) {
-    return RichText(
-      text: TextSpan(
-        text: label,
-
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: darkColor,
-        ),
-
-        children: mandatory
-            ? const [
-                TextSpan(
-                  text: ' *',
-                  style: TextStyle(
-                    color: Colors.red,
-                  ),
-                ),
-              ]
-            : null,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor:
+            success ? Colors.green.shade700 : Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  // ============================================================
-  // SECTION
-  // ============================================================
+  // ------------------------------------------------------------
+  // ERROR PARSER
+  // ------------------------------------------------------------
 
-  Widget _buildSectionContainer({
-    required Widget child,
-  }) {
-    return Container(
-      width: double.infinity,
+  String _getErrorMessage(http.Response response) {
+    try {
+      final dynamic decoded = jsonDecode(response.body);
 
-      padding: const EdgeInsets.all(18),
+      if (decoded is Map<String, dynamic>) {
+        final detail = decoded['detail'];
 
-      decoration: BoxDecoration(
-        color: Colors.white,
+        if (detail is String && detail.trim().isNotEmpty) {
+          return detail.trim();
+        }
 
-        borderRadius:
-            BorderRadius.circular(18),
+        if (detail is List && detail.isNotEmpty) {
+          final messages = detail.map((item) {
+            if (item is Map<String, dynamic>) {
+              return _stringValue(
+                item['msg'],
+              );
+            }
 
-        border: Border.all(
-          color: const Color(0xFFE5E8EF),
-        ),
+            return item.toString();
+          }).where((msg) => msg.trim().isNotEmpty).join(', ');
 
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black.withOpacity(0.025),
+          if (messages.isNotEmpty) {
+            return messages;
+          }
+        }
 
-            blurRadius: 12,
+        final message = decoded['message'];
 
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      }
+    } catch (_) {
+      // Response was not valid JSON.
+    }
 
-      child: child,
-    );
+    if (response.body.trim().isNotEmpty) {
+      return response.body.trim();
+    }
+
+    return 'Request failed with status ${response.statusCode}.';
   }
 
-  // ============================================================
-  // SUBMIT BUTTON
-  // ============================================================
-
-  Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-
-      child: ElevatedButton.icon(
-        onPressed:
-            isSubmitting ? null : _submitRequest,
-
-        icon: isSubmitting
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(
-                Icons.send_rounded,
-                size: 20,
-              ),
-
-        label: Text(
-          isSubmitting
-              ? 'Submitting...'
-              : 'Submit Request',
-
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
-
-          foregroundColor: Colors.white,
-
-          disabledBackgroundColor:
-              primaryColor.withOpacity(.55),
-
-          elevation: 0,
-
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(13),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // REAL API REQUEST
-  // ============================================================
+  // ------------------------------------------------------------
+  // SUBMIT REQUEST
+  // ------------------------------------------------------------
 
   Future<void> _submitRequest() async {
-    final department =
-        departmentController.text.trim();
+    if (isSubmitting) return;
 
-    final description =
-        descriptionController.text.trim();
+    final department = departmentController.text.trim();
+    final description = descriptionController.text.trim();
 
     // ----------------------------------------------------------
     // VALIDATION
     // ----------------------------------------------------------
 
     if (department.isEmpty) {
-      _showMessage(
-        'Please enter your department.',
-      );
+      _showMessage('Please enter your department.');
       return;
     }
 
     if (assetName.isEmpty) {
-      _showMessage(
-        'No asset has been selected.',
-      );
+      _showMessage('Asset name is missing.');
       return;
     }
 
     if (assetId.isEmpty) {
-      _showMessage(
-        'Selected asset does not have an asset ID.',
-      );
+      _showMessage('Asset ID is missing.');
       return;
     }
 
     if (description.isEmpty) {
-      _showMessage(
-        'Please explain why you need this asset.',
-      );
+      _showMessage('Please enter the reason for your request.');
+      return;
+    }
+
+    if (description.length < 3) {
+      _showMessage('Please enter a valid request description.');
       return;
     }
 
@@ -938,97 +328,118 @@ class _MyRequestState extends State<MyRequest> {
     // GET JWT TOKEN
     // ----------------------------------------------------------
 
-    final prefs =
-        await SharedPreferences.getInstance();
+    final token = await AuthStorage.getToken();
 
-    final token =
-        prefs.getString('token');
-
-    if (token == null || token.isEmpty) {
+    if (token == null || token.trim().isEmpty) {
       _showMessage(
         'Your login session has expired. Please login again.',
       );
       return;
     }
 
-    setState(() {
-      isSubmitting = true;
-    });
+    // ----------------------------------------------------------
+    // DEBUG
+    // ----------------------------------------------------------
+
+    debugPrint('============================================');
+    debugPrint('ORGAFLOW CREATE REQUEST');
+    debugPrint('URL: ${ApiConfig.baseUrl}/api/requests');
+    debugPrint('Employee: $employeeName');
+    debugPrint('Email: $employeeEmail');
+    debugPrint('Department: $department');
+    debugPrint('Asset ID: $assetId');
+    debugPrint('Asset Name: $assetName');
+    debugPrint('Priority: $selectedPriority');
+    debugPrint('Token available: ${token.isNotEmpty}');
+    debugPrint('============================================');
+
+    if (mounted) {
+      setState(() {
+        isSubmitting = true;
+      });
+    }
 
     try {
       // --------------------------------------------------------
-      // REAL BACKEND CALL
+      // REQUEST BODY
       // --------------------------------------------------------
 
-      final response = await http.post(
-        Uri.parse(
-          '$baseUrl/api/requests',
-        ),
+      final requestBody = {
+        'asset_id': assetId,
+        'asset_name': assetName,
+        'asset_category': assetCategory,
+        'asset_brand': assetBrand,
+        'asset_model': assetModel,
+        'department': department,
+        'priority': selectedPriority,
+        'description': description,
+      };
 
-        headers: {
-          'Content-Type':
-              'application/json',
-
-          'Authorization':
-              'Bearer $token',
-        },
-
-        body: jsonEncode({
-          'asset_id': assetId,
-
-          'asset_name': assetName,
-
-          'asset_category':
-              assetCategory,
-
-          'asset_brand':
-              assetBrand,
-
-          'asset_model':
-              assetModel,
-
-          'department':
-              department,
-
-          'priority':
-              selectedPriority,
-
-          'description':
-              description,
-        }),
+      debugPrint(
+        'REQUEST JSON: ${jsonEncode(requestBody)}',
       );
 
       // --------------------------------------------------------
-      // RESPONSE
+      // API CALL
       // --------------------------------------------------------
 
-      Map<String, dynamic> data = {};
+      final response = await http
+          .post(
+            Uri.parse(
+              '${ApiConfig.baseUrl}/api/requests',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer ${token.trim()}',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            ApiConfig.requestTimeout,
+          );
 
-      try {
-        data = jsonDecode(
-          response.body,
-        );
-      } catch (_) {
-        data = {};
-      }
+      // --------------------------------------------------------
+      // RESPONSE DEBUG
+      // --------------------------------------------------------
+
+      debugPrint('--------------------------------------------');
+      debugPrint(
+        'REQUEST STATUS: ${response.statusCode}',
+      );
+      debugPrint(
+        'REQUEST BODY: ${response.body}',
+      );
+      debugPrint('--------------------------------------------');
 
       // --------------------------------------------------------
       // SUCCESS
       // --------------------------------------------------------
 
-      if (response.statusCode >= 200 &&
-          response.statusCode < 300 &&
-          data['success'] == true) {
+      if (response.statusCode == 200 ||
+          response.statusCode == 201) {
+        String requestCode = 'Pending';
+
+        try {
+          final decoded = jsonDecode(response.body);
+
+          if (decoded is Map<String, dynamic>) {
+            final requestData = decoded['request'];
+
+            if (requestData is Map<String, dynamic>) {
+              final code = requestData['request_code'];
+
+              if (code != null &&
+                  code.toString().trim().isNotEmpty) {
+                requestCode = code.toString().trim();
+              }
+            }
+          }
+        } catch (_) {
+          // Keep default value.
+        }
+
         if (!mounted) return;
-
-        final request =
-            data['request'];
-
-        final requestCode =
-            request is Map
-                ? request['request_code']
-                    ?.toString()
-                : null;
 
         await _showSuccessDialog(
           requestCode,
@@ -1038,34 +449,99 @@ class _MyRequestState extends State<MyRequest> {
       }
 
       // --------------------------------------------------------
+      // UNAUTHORIZED
+      // --------------------------------------------------------
+
+      if (response.statusCode == 401) {
+        await AuthStorage.clear();
+
+        _showMessage(
+          'Login session expired. Please login again.',
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // FORBIDDEN
+      // --------------------------------------------------------
+
+      if (response.statusCode == 403) {
+        final message = _getErrorMessage(response);
+
+        _showMessage(
+          message.isNotEmpty
+              ? message
+              : 'You are not allowed to submit this request.',
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // VALIDATION ERROR
+      // --------------------------------------------------------
+
+      if (response.statusCode == 422) {
+        _showMessage(
+          _getErrorMessage(response),
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
       // SERVER ERROR
       // --------------------------------------------------------
 
-      String message =
-          'Unable to submit request.';
-
-      if (data['detail'] != null) {
-        message =
-            data['detail'].toString();
-      }
-
-      if (mounted) {
-        _showMessage(message);
-      }
-    } catch (e) {
-      // --------------------------------------------------------
-      // NETWORK ERROR
-      // --------------------------------------------------------
-
-      if (mounted) {
+      if (response.statusCode >= 500) {
         _showMessage(
-          'Unable to connect to Orgaflow server. '
-          'Please check that the backend is running.',
+          'Server error. Please check the FastAPI terminal.',
         );
+
+        return;
       }
 
+      // --------------------------------------------------------
+      // OTHER ERROR
+      // --------------------------------------------------------
+
+      _showMessage(
+        _getErrorMessage(response),
+      );
+    } on TimeoutException {
+      debugPrint(
+        'REQUEST ERROR: Connection timed out.',
+      );
+
+      _showMessage(
+        'Server connection timed out. '
+        'Make sure FastAPI is running and adb reverse is enabled.',
+      );
+    } on http.ClientException catch (e) {
+      debugPrint(
+        'HTTP CLIENT ERROR: $e',
+      );
+
+      _showMessage(
+        'Unable to connect to Orgaflow server.',
+      );
+    } on FormatException catch (e) {
+      debugPrint(
+        'JSON FORMAT ERROR: $e',
+      );
+
+      _showMessage(
+        'Invalid response received from server.',
+      );
+    } catch (e) {
       debugPrint(
         'REQUEST API ERROR: $e',
+      );
+
+      _showMessage(
+        'Unable to connect to Orgaflow server. '
+        'Please make sure the backend is running.',
       );
     } finally {
       if (mounted) {
@@ -1076,137 +552,110 @@ class _MyRequestState extends State<MyRequest> {
     }
   }
 
-  // ============================================================
+  // ------------------------------------------------------------
   // SUCCESS DIALOG
-  // ============================================================
+  // ------------------------------------------------------------
 
   Future<void> _showSuccessDialog(
-    String? requestCode,
+    String requestCode,
   ) async {
     if (!mounted) return;
 
     await showDialog(
       context: context,
-
       barrierDismissible: false,
-
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
           ),
-
           title: const Row(
             children: [
               Icon(
-                Icons.check_circle_rounded,
+                Icons.check_circle,
                 color: Colors.green,
-                size: 28,
+                size: 30,
               ),
-
               SizedBox(width: 10),
-
               Expanded(
                 child: Text(
                   'Request Submitted',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
-
           content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Your request for "$assetName" has been submitted successfully.',
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-
-              if (requestCode != null &&
-                  requestCode.isNotEmpty) ...[
-                const SizedBox(height: 12),
-
-                Container(
-                  width: double.infinity,
-
-                  padding:
-                      const EdgeInsets.all(12),
-
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        const Color(0xFFEEF2FF),
-
-                    borderRadius:
-                        BorderRadius.circular(
-                      10,
-                    ),
-                  ),
-
-                  child: Text(
-                    'Request ID: $requestCode',
-
-                    style:
-                        const TextStyle(
-                      color:
-                          primaryColor,
-                      fontWeight:
-                          FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 12),
-
               const Text(
-                'Status: Pending\n\n'
-                'Asset Management will review your request. '
-                'You can track the status from Track Requests.',
-
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: greyColor,
+                'Your asset request has been submitted successfully.',
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Request ID',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      requestCode,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Status',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Pending',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.of(context).pop();
 
-                Navigator.pop(
-                  context,
-                );
+                // Return to previous page after successful submission.
+                if (mounted) {
+                  Navigator.of(context).pop(true);
+                }
               },
-
               child: const Text(
                 'Done',
-
                 style: TextStyle(
-                  color: primaryColor,
-                  fontWeight:
-                      FontWeight.w700,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -1216,27 +665,467 @@ class _MyRequestState extends State<MyRequest> {
     );
   }
 
-  // ============================================================
-  // MESSAGE
-  // ============================================================
+  // ------------------------------------------------------------
+  // ASSET IMAGE
+  // ------------------------------------------------------------
 
-  void _showMessage(
-    String message,
-  ) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-
-          behavior:
-              SnackBarBehavior.floating,
-
-          duration:
-              const Duration(seconds: 3),
+  Widget _buildAssetImage() {
+    if (assetImage.isEmpty) {
+      return Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(
+          Icons.inventory_2_outlined,
+          size: 70,
+          color: Colors.grey,
         ),
       );
+    }
+
+    // Network image.
+    if (assetImage.startsWith('http://') ||
+        assetImage.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.network(
+          assetImage,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (
+            context,
+            error,
+            stackTrace,
+          ) {
+            return Container(
+              height: 180,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.broken_image_outlined,
+                size: 60,
+                color: Colors.grey,
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // Local asset image.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.asset(
+        assetImage,
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              size: 60,
+              color: Colors.grey,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // INFO ROW
+  // ------------------------------------------------------------
+
+  Widget _infoRow(
+    String title,
+    String value,
+  ) {
+    if (value.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // TEXT FIELD
+  // ------------------------------------------------------------
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    bool enabled = true,
+  }) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      maxLines: maxLines,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon),
+        alignLabelWithHint: maxLines > 1,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: Colors.grey.shade300,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: Color(0xFF3B5BDB),
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFEDEFF5),
+      appBar: AppBar(
+        title: const Text(
+          'New Asset Request',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: const Color(0xFF3B5BDB),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ------------------------------------------------
+              // EMPLOYEE
+              // ------------------------------------------------
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Employee Information',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _infoRow(
+                      'Name',
+                      employeeName,
+                    ),
+                    _infoRow(
+                      'Email',
+                      employeeEmail,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ------------------------------------------------
+              // SELECTED ASSET
+              // ------------------------------------------------
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Selected Asset',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildAssetImage(),
+
+                    const SizedBox(height: 16),
+
+                    Text(
+                      assetName.isEmpty
+                          ? 'Unknown Asset'
+                          : assetName,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    _infoRow(
+                      'Asset ID',
+                      assetId,
+                    ),
+
+                    _infoRow(
+                      'Category',
+                      assetCategory,
+                    ),
+
+                    _infoRow(
+                      'Brand',
+                      assetBrand,
+                    ),
+
+                    _infoRow(
+                      'Model',
+                      assetModel,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ------------------------------------------------
+              // REQUEST DETAILS
+              // ------------------------------------------------
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Request Details',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildTextField(
+                      controller: departmentController,
+                      label: 'Department',
+                      hint: 'Enter your department',
+                      icon: Icons.business_outlined,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Priority
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPriority,
+                      decoration: InputDecoration(
+                        labelText: 'Priority',
+                        prefixIcon:
+                            const Icon(Icons.flag_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.grey.shade300,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF3B5BDB),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Normal',
+                          child: Text('Normal'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Urgent',
+                          child: Text('Urgent'),
+                        ),
+                      ],
+                      onChanged: isSubmitting
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+
+                              setState(() {
+                                selectedPriority = value;
+                              });
+                            },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _buildTextField(
+                      controller: descriptionController,
+                      label: 'Reason / Description',
+                      hint:
+                          'Why do you need this asset?',
+                      icon: Icons.description_outlined,
+                      maxLines: 5,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ------------------------------------------------
+              // SUBMIT BUTTON
+              // ------------------------------------------------
+
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed:
+                      isSubmitting ? null : _submitRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF3B5BDB),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        Colors.grey.shade400,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.send_rounded,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Submit Request',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Center(
+                child: Text(
+                  'Your request will be sent to the asset management team.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
