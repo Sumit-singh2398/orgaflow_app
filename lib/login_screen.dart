@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'signup_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -36,6 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
   static const String googleServerClientId =
       '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com';
 
+  // Key used to store the backend JWT. AuthStorage (my_request.dart)
+  // reads this same key.
+  static const String tokenStorageKey = 'access_token';
+
   // ============================================================
   // COLORS
   // ============================================================
@@ -48,11 +54,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // CONTROLLERS
   // ============================================================
 
-  final TextEditingController _emailController =
-      TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
 
-  final TextEditingController _passwordController =
-      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   // ============================================================
   // STATE
@@ -82,13 +86,9 @@ class _LoginScreenState extends State<LoginScreen> {
         serverClientId: googleServerClientId,
       );
 
-      debugPrint(
-        'Google Sign-In initialized successfully',
-      );
+      debugPrint('Google Sign-In initialized successfully');
     } catch (e) {
-      debugPrint(
-        'Google initialization error: $e',
-      );
+      debugPrint('Google initialization error: $e');
     }
   }
 
@@ -110,8 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -119,6 +118,45 @@ class _LoginScreenState extends State<LoginScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  // ============================================================
+  // SAVE SESSION (JWT)
+  // ============================================================
+  //
+  // Backend returns:
+  //   { "access_token": "...", "token_type": "bearer", "user": {...} }
+  //
+  // The token MUST be saved, otherwise every protected API
+  // (like POST /api/requests) fails with "session expired".
+  // ============================================================
+
+  Future<bool> _saveSession(dynamic data) async {
+    if (data is! Map) {
+      debugPrint('SAVE SESSION: response is not a map.');
+      return false;
+    }
+
+    final token =
+        (data['access_token'] ?? data['token'])?.toString().trim() ?? '';
+
+    if (token.isEmpty) {
+      debugPrint('SAVE SESSION: no access_token in response.');
+      return false;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString(tokenStorageKey, token);
+
+      debugPrint('TOKEN SAVED (${token.length} chars)');
+
+      return true;
+    } catch (e) {
+      debugPrint('SAVE SESSION ERROR: $e');
+      return false;
+    }
   }
 
   // ============================================================
@@ -167,11 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================================================
 
   String _normalizeRole(String role) {
-    return role
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
+    return role.trim().toUpperCase().replaceAll('-', '_').replaceAll(' ', '_');
   }
 
   // ============================================================
@@ -198,11 +232,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (_isManagement &&
-        _selectedManagementRole == null) {
-      _showMessage(
-        'Please select your management role.',
-      );
+    if (_isManagement && _selectedManagementRole == null) {
+      _showMessage('Please select your management role.');
       return;
     }
 
@@ -221,9 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Backend uses this only to know which portal
         // the user is trying to enter.
-        'portal': _isManagement
-            ? 'management'
-            : 'employee',
+        'portal': _isManagement ? 'management' : 'employee',
       };
 
       // Role is required only for management login.
@@ -232,34 +261,27 @@ class _LoginScreenState extends State<LoginScreen> {
       // This does NOT grant the role.
       // Backend must compare this with users.role.
       if (_isManagement) {
-        requestBody['role'] =
-            _selectedManagementRole;
+        requestBody['role'] = _selectedManagementRole;
       }
 
+      // Never print the password in logs.
       debugPrint(
-        'LOGIN REQUEST: ${jsonEncode(requestBody)}',
+        'LOGIN REQUEST: ${jsonEncode({...requestBody, 'password': '***'})}',
       );
 
       final response = await http
           .post(
-            Uri.parse(
-              '$baseUrl/api/auth/login',
-            ),
+            Uri.parse('$baseUrl/api/auth/login'),
             headers: const {
-              'Content-Type':
-                  'application/json',
+              'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
             body: jsonEncode(requestBody),
           )
-          .timeout(
-            const Duration(seconds: 15),
-          );
+          .timeout(const Duration(seconds: 15));
 
       debugPrint(
-        'LOGIN RESPONSE: '
-        '${response.statusCode} '
-        '${response.body}',
+        'LOGIN RESPONSE: ${response.statusCode} ${response.body}',
       );
 
       dynamic data;
@@ -275,42 +297,35 @@ class _LoginScreenState extends State<LoginScreen> {
       // ----------------------------------------------------------
 
       if (response.statusCode == 200) {
-        final rawUser =
-            data is Map
-                ? (data['user'] ?? data)
-                : {};
+        final rawUser = data is Map ? (data['user'] ?? data) : {};
 
         if (rawUser is! Map) {
+          _showMessage('Invalid user data received from server.');
+          return;
+        }
+
+        final userData = Map<String, dynamic>.from(rawUser);
+
+        // Save the JWT so protected APIs work.
+        final saved = await _saveSession(data);
+
+        if (!saved) {
           _showMessage(
-            'Invalid user data received from server.',
+            'Login succeeded but the server did not return a session token.',
           );
           return;
         }
 
-        final userData =
-            Map<String, dynamic>.from(
-          rawUser,
-        );
-
         final role = _normalizeRole(
-          (userData['role'] ??
-                  'EMPLOYEE')
-              .toString(),
+          (userData['role'] ?? 'EMPLOYEE').toString(),
         );
 
-        debugPrint(
-          'LOGIN SUCCESS',
-        );
-        debugPrint(
-          'ACTUAL USER ROLE: $role',
-        );
+        debugPrint('LOGIN SUCCESS');
+        debugPrint('ACTUAL USER ROLE: $role');
 
         if (!mounted) return;
 
-        _openDashboardByRole(
-          role,
-          userData,
-        );
+        _openDashboardByRole(role, userData);
 
         return;
       }
@@ -319,51 +334,34 @@ class _LoginScreenState extends State<LoginScreen> {
       // BACKEND ERROR
       // ----------------------------------------------------------
 
-      final message =
-          _extractBackendMessage(
-        data,
-        response.statusCode,
+      _showMessage(
+        _extractBackendMessage(data, response.statusCode),
       );
-
-      _showMessage(message);
     } on http.ClientException catch (e) {
-      debugPrint(
-        'HTTP CLIENT ERROR: $e',
-      );
+      debugPrint('HTTP CLIENT ERROR: $e');
 
       _showMessage(
         'Cannot connect to Orgaflow server. '
         'Check FastAPI and adb reverse.',
       );
+    } on TimeoutException {
+      _showMessage('Server connection timed out. Please try again.');
     } catch (e) {
-      debugPrint(
-        'LOGIN ERROR: $e',
-      );
+      debugPrint('LOGIN ERROR: $e');
 
       final error = e.toString();
 
-      if (error.contains(
-            'Connection refused',
-          ) ||
-          error.contains(
-            'SocketException',
-          )) {
+      if (error.contains('Connection refused') ||
+          error.contains('SocketException')) {
         _showMessage(
           'Cannot connect to Orgaflow server. '
           'Make sure FastAPI is running and '
           'USB reverse is enabled.',
         );
-      } else if (error.contains(
-        'TimeoutException',
-      )) {
-        _showMessage(
-          'Server connection timed out. '
-          'Please try again.',
-        );
+      } else if (error.contains('TimeoutException')) {
+        _showMessage('Server connection timed out. Please try again.');
       } else {
-        _showMessage(
-          'Login failed. Please try again.',
-        );
+        _showMessage('Login failed. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -379,11 +377,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================================================
 
   Future<void> _googleLogin() async {
-    if (_isManagement &&
-        _selectedManagementRole == null) {
-      _showMessage(
-        'Please select your management role.',
-      );
+    if (_isManagement && _selectedManagementRole == null) {
+      _showMessage('Please select your management role.');
       return;
     }
 
@@ -396,45 +391,29 @@ class _LoginScreenState extends State<LoginScreen> {
       // STEP 1: GOOGLE SIGN IN
       // ----------------------------------------------------------
 
-      debugPrint(
-        'Starting Google Sign-In...',
-      );
+      debugPrint('Starting Google Sign-In...');
 
-      final account =
-          await _googleSignIn.authenticate();
+      final account = await _googleSignIn.authenticate();
 
-      debugPrint(
-        'Google account selected: '
-        '${account.email}',
-      );
+      debugPrint('Google account selected: ${account.email}');
 
       // ----------------------------------------------------------
       // STEP 2: GET GOOGLE ID TOKEN
       // ----------------------------------------------------------
 
-      final authentication =
-          account.authentication;
+      final authentication = account.authentication;
 
-      final idToken =
-          authentication.idToken;
+      final idToken = authentication.idToken;
 
-      if (idToken == null ||
-          idToken.isEmpty) {
-        debugPrint(
-          'Google ID token is null or empty.',
-        );
+      if (idToken == null || idToken.isEmpty) {
+        debugPrint('Google ID token is null or empty.');
 
-        _showMessage(
-          'Google authentication token '
-          'was not received.',
-        );
+        _showMessage('Google authentication token was not received.');
 
         return;
       }
 
-      debugPrint(
-        'Google ID token received successfully.',
-      );
+      debugPrint('Google ID token received successfully.');
 
       // ----------------------------------------------------------
       // STEP 3: PREPARE FASTAPI REQUEST
@@ -444,69 +423,40 @@ class _LoginScreenState extends State<LoginScreen> {
         'id_token': idToken,
 
         // Employee or Management
-        'portal': _isManagement
-            ? 'management'
-            : 'employee',
+        'portal': _isManagement ? 'management' : 'employee',
       };
 
-      // For management:
-      //
-      // Backend must compare this selected role
-      // with users.role.
-      //
-      // Example:
-      // selected = ADMIN
-      // database = ADMIN
-      // -> allowed
-      //
-      // selected = ADMIN
-      // database = EMPLOYEE
-      // -> 403
+      // For management the backend compares this selected
+      // role with users.role (403 if they do not match).
       if (_isManagement) {
-        requestBody['role'] =
-            _selectedManagementRole;
+        requestBody['role'] = _selectedManagementRole;
       }
 
-      debugPrint(
-        'GOOGLE REQUEST PORTAL: '
-        '${requestBody['portal']}',
-      );
+      debugPrint('GOOGLE REQUEST PORTAL: ${requestBody['portal']}');
 
       if (_isManagement) {
-        debugPrint(
-          'GOOGLE REQUEST ROLE: '
-          '${requestBody['role']}',
-        );
+        debugPrint('GOOGLE REQUEST ROLE: ${requestBody['role']}');
       }
 
       // ----------------------------------------------------------
       // STEP 4: SEND TOKEN TO FASTAPI
       // ----------------------------------------------------------
 
-      debugPrint(
-        'Sending Google token to FastAPI...',
-      );
+      debugPrint('Sending Google token to FastAPI...');
 
       final response = await http
           .post(
-            Uri.parse(
-              '$baseUrl/api/auth/google-login',
-            ),
+            Uri.parse('$baseUrl/api/auth/google-login'),
             headers: const {
-              'Content-Type':
-                  'application/json',
+              'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
             body: jsonEncode(requestBody),
           )
-          .timeout(
-            const Duration(seconds: 15),
-          );
+          .timeout(const Duration(seconds: 15));
 
       debugPrint(
-        'GOOGLE BACKEND RESPONSE: '
-        '${response.statusCode} '
-        '${response.body}',
+        'GOOGLE BACKEND RESPONSE: ${response.statusCode} ${response.body}',
       );
 
       dynamic data;
@@ -522,46 +472,36 @@ class _LoginScreenState extends State<LoginScreen> {
       // ----------------------------------------------------------
 
       if (response.statusCode == 200) {
-        final rawUser =
-            data is Map
-                ? (data['user'] ?? data)
-                : {};
+        final rawUser = data is Map ? (data['user'] ?? data) : {};
 
         if (rawUser is! Map) {
+          _showMessage('Invalid user data received from server.');
+          return;
+        }
+
+        final userData = Map<String, dynamic>.from(rawUser);
+
+        // Save the JWT so protected APIs work.
+        final saved = await _saveSession(data);
+
+        if (!saved) {
           _showMessage(
-            'Invalid user data received '
-            'from server.',
+            'Google login succeeded but the server did not return a session token.',
           );
           return;
         }
 
-        final userData =
-            Map<String, dynamic>.from(
-          rawUser,
-        );
-
-        // IMPORTANT:
-        // Role comes from backend/database.
+        // IMPORTANT: role comes from backend/database.
         final role = _normalizeRole(
-          (userData['role'] ??
-                  'EMPLOYEE')
-              .toString(),
+          (userData['role'] ?? 'EMPLOYEE').toString(),
         );
 
-        debugPrint(
-          'GOOGLE LOGIN SUCCESS',
-        );
-
-        debugPrint(
-          'ACTUAL DATABASE ROLE: $role',
-        );
+        debugPrint('GOOGLE LOGIN SUCCESS');
+        debugPrint('ACTUAL DATABASE ROLE: $role');
 
         if (!mounted) return;
 
-        _openDashboardByRole(
-          role,
-          userData,
-        );
+        _openDashboardByRole(role, userData);
 
         return;
       }
@@ -570,56 +510,35 @@ class _LoginScreenState extends State<LoginScreen> {
       // BACKEND ERROR
       // ----------------------------------------------------------
 
-      final message =
-          _extractBackendMessage(
-        data,
-        response.statusCode,
-      );
+      final message = _extractBackendMessage(data, response.statusCode);
 
-      debugPrint(
-        'GOOGLE BACKEND ERROR: $message',
-      );
+      debugPrint('GOOGLE BACKEND ERROR: $message');
 
       _showMessage(message);
     } on http.ClientException catch (e) {
-      debugPrint(
-        'GOOGLE HTTP CLIENT ERROR: $e',
-      );
+      debugPrint('GOOGLE HTTP CLIENT ERROR: $e');
 
       _showMessage(
         'Google login succeeded, but '
         'Orgaflow server could not be reached.',
       );
+    } on TimeoutException {
+      _showMessage('Server connection timed out. Please try again.');
     } catch (e) {
-      debugPrint(
-        'GOOGLE LOGIN ERROR: $e',
-      );
+      debugPrint('GOOGLE LOGIN ERROR: $e');
 
       final error = e.toString();
 
-      if (error.contains(
-            'Connection refused',
-          ) ||
-          error.contains(
-            'SocketException',
-          )) {
+      if (error.contains('Connection refused') ||
+          error.contains('SocketException')) {
         _showMessage(
           'Google login succeeded, but '
           'Orgaflow server could not be reached.',
         );
-      } else if (error.contains(
-            'canceled',
-          ) ||
-          error.contains(
-            'cancelled',
-          )) {
-        _showMessage(
-          'Google sign-in was cancelled.',
-        );
+      } else if (error.contains('canceled') || error.contains('cancelled')) {
+        _showMessage('Google sign-in was cancelled.');
       } else {
-        _showMessage(
-          'Google login failed. Please try again.',
-        );
+        _showMessage('Google login failed. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -642,8 +561,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final detail = data['detail'];
 
       if (detail != null) {
-        if (detail is String &&
-            detail.trim().isNotEmpty) {
+        if (detail is String && detail.trim().isNotEmpty) {
           return detail;
         }
 
@@ -652,25 +570,19 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         if (detail is List) {
-          return detail
-              .map(
-                (e) => e.toString(),
-              )
-              .join(', ');
+          return detail.map((e) => e.toString()).join(', ');
         }
       }
 
       final message = data['message'];
 
-      if (message != null &&
-          message.toString().trim().isNotEmpty) {
+      if (message != null && message.toString().trim().isNotEmpty) {
         return message.toString();
       }
 
       final error = data['error'];
 
-      if (error != null &&
-          error.toString().trim().isNotEmpty) {
+      if (error != null && error.toString().trim().isNotEmpty) {
         return error.toString();
       }
     }
@@ -704,36 +616,28 @@ class _LoginScreenState extends State<LoginScreen> {
     String role,
     Map<String, dynamic> userData,
   ) {
-    final normalizedRole =
-        _normalizeRole(role);
+    final normalizedRole = _normalizeRole(role);
 
-    debugPrint(
-      'Opening dashboard for role: '
-      '$normalizedRole',
-    );
+    debugPrint('Opening dashboard for role: $normalizedRole');
 
     Widget destination;
 
     switch (normalizedRole) {
       case 'ADMIN':
-        destination =
-            const AdminDashboard();
+        destination = const AdminDashboard();
         break;
 
       case 'ASSET_MANAGER':
-        destination =
-            const AssetManagerDashboard();
+        destination = const AssetManagerDashboard();
         break;
 
       case 'DEPARTMENT_HEAD':
-        destination =
-            const DepartmentHeadDashboard();
+        destination = const DepartmentHeadDashboard();
         break;
 
       case 'EMPLOYEE':
       default:
-        destination =
-            EmployeeDashboard(
+        destination = EmployeeDashboard(
           isNewUser: false,
           userData: userData,
         );
@@ -742,9 +646,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => destination,
-      ),
+      MaterialPageRoute(builder: (_) => destination),
       (route) => false,
     );
   }
@@ -759,11 +661,8 @@ class _LoginScreenState extends State<LoginScreen> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         children: [
@@ -774,28 +673,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   : () {
                       setState(() {
                         _isManagement = false;
-                        _selectedManagementRole =
-                            null;
+                        _selectedManagementRole = null;
                       });
                     },
               child: Container(
                 decoration: BoxDecoration(
-                  color: !_isManagement
-                      ? primaryColor
-                      : Colors.transparent,
-                  borderRadius:
-                      BorderRadius.circular(10),
+                  color: !_isManagement ? primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'Employee',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight:
-                        FontWeight.w700,
-                    color: !_isManagement
-                        ? Colors.white
-                        : Colors.black87,
+                    fontWeight: FontWeight.w700,
+                    color: !_isManagement ? Colors.white : Colors.black87,
                   ),
                 ),
               ),
@@ -812,22 +704,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
               child: Container(
                 decoration: BoxDecoration(
-                  color: _isManagement
-                      ? primaryColor
-                      : Colors.transparent,
-                  borderRadius:
-                      BorderRadius.circular(10),
+                  color: _isManagement ? primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'Management',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight:
-                        FontWeight.w700,
-                    color: _isManagement
-                        ? Colors.white
-                        : Colors.black87,
+                    fontWeight: FontWeight.w700,
+                    color: _isManagement ? Colors.white : Colors.black87,
                   ),
                 ),
               ),
@@ -852,41 +738,31 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      keyboardType:
-          hint == 'Email'
-              ? TextInputType.emailAddress
-              : TextInputType.text,
+      enabled: !_isLoading,
+      keyboardType: hint == 'Email'
+          ? TextInputType.emailAddress
+          : TextInputType.text,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(
-          icon,
-          color: primaryColor,
-        ),
+        prefixIcon: Icon(icon, color: primaryColor),
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 15,
         ),
         border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
             color: primaryColor,
             width: 1.2,
           ),
@@ -905,40 +781,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     return Padding(
-      padding:
-          const EdgeInsets.only(top: 14),
-      child:
-          DropdownButtonFormField<String>(
-        initialValue:
-            _selectedManagementRole,
+      padding: const EdgeInsets.only(top: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: _selectedManagementRole,
         decoration: InputDecoration(
-          hintText:
-              'Select Management Role',
-          prefixIcon:
-              const Icon(
-            Icons
-                .admin_panel_settings_outlined,
+          hintText: 'Select Management Role',
+          prefixIcon: const Icon(
+            Icons.admin_panel_settings_outlined,
             color: primaryColor,
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding:
-              const EdgeInsets.symmetric(
+          contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 15,
           ),
           border: OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(14),
-            borderSide:
-                BorderSide.none,
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
           ),
-          enabledBorder:
-              OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(14),
-            borderSide:
-                BorderSide.none,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
           ),
         ),
         items: const [
@@ -948,21 +812,18 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           DropdownMenuItem(
             value: 'ASSET_MANAGER',
-            child:
-                Text('Asset Manager'),
+            child: Text('Asset Manager'),
           ),
           DropdownMenuItem(
             value: 'DEPARTMENT_HEAD',
-            child:
-                Text('Department Head'),
+            child: Text('Department Head'),
           ),
         ],
         onChanged: _isLoading
             ? null
             : (value) {
                 setState(() {
-                  _selectedManagementRole =
-                      value;
+                  _selectedManagementRole = value;
                 });
               },
       ),
@@ -976,27 +837,19 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          backgroundColor,
+      backgroundColor: backgroundColor,
       body: SafeArea(
         child: Center(
-          child:
-              SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
               horizontal: 24,
               vertical: 28,
             ),
             child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 430,
-              ),
+              constraints: const BoxConstraints(maxWidth: 430),
               child: Column(
                 children: [
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
 
                   // ------------------------------------------------
                   // LOGO
@@ -1005,25 +858,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     width: 78,
                     height: 78,
-                    decoration:
-                        BoxDecoration(
+                    decoration: BoxDecoration(
                       color: primaryColor,
-                      borderRadius:
-                          BorderRadius.circular(
-                        22,
-                      ),
+                      borderRadius: BorderRadius.circular(22),
                     ),
                     child: const Icon(
-                      Icons
-                          .business_center_rounded,
+                      Icons.business_center_rounded,
                       size: 42,
                       color: Colors.white,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 18,
-                  ),
+                  const SizedBox(height: 18),
 
                   // ------------------------------------------------
                   // TITLE
@@ -1033,29 +879,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Welcome to Orgaflow',
                     style: TextStyle(
                       fontSize: 27,
-                      fontWeight:
-                          FontWeight.w800,
+                      fontWeight: FontWeight.w800,
                       color: Colors.black87,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 7,
-                  ),
+                  const SizedBox(height: 7),
 
                   const Text(
                     'Manage your organization with ease',
-                    textAlign:
-                        TextAlign.center,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
                       color: secondaryText,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 28,
-                  ),
+                  const SizedBox(height: 28),
 
                   // ------------------------------------------------
                   // PORTAL
@@ -1063,54 +903,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   _buildPortalToggle(),
 
-                  const SizedBox(
-                    height: 20,
-                  ),
+                  const SizedBox(height: 20),
 
                   // ------------------------------------------------
                   // EMAIL
                   // ------------------------------------------------
 
                   _buildTextField(
-                    controller:
-                        _emailController,
+                    controller: _emailController,
                     hint: 'Email',
-                    icon:
-                        Icons.email_outlined,
+                    icon: Icons.email_outlined,
                   ),
 
-                  const SizedBox(
-                    height: 14,
-                  ),
+                  const SizedBox(height: 14),
 
                   // ------------------------------------------------
                   // PASSWORD
                   // ------------------------------------------------
 
                   _buildTextField(
-                    controller:
-                        _passwordController,
+                    controller: _passwordController,
                     hint: 'Password',
-                    icon:
-                        Icons.lock_outline,
-                    obscureText:
-                        _obscurePassword,
-                    suffixIcon:
-                        IconButton(
+                    icon: Icons.lock_outline,
+                    obscureText: _obscurePassword,
+                    suffixIcon: IconButton(
                       onPressed: () {
                         setState(() {
-                          _obscurePassword =
-                              !_obscurePassword;
+                          _obscurePassword = !_obscurePassword;
                         });
                       },
                       icon: Icon(
                         _obscurePassword
-                            ? Icons
-                                .visibility_off_outlined
-                            : Icons
-                                .visibility_outlined,
-                        color:
-                            secondaryText,
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: secondaryText,
                       ),
                     ),
                   ),
@@ -1121,73 +947,47 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   _buildManagementRoleDropdown(),
 
-                  const SizedBox(
-                    height: 20,
-                  ),
+                  const SizedBox(height: 20),
 
                   // ------------------------------------------------
                   // LOGIN
                   // ------------------------------------------------
 
                   SizedBox(
-                    width:
-                        double.infinity,
+                    width: double.infinity,
                     height: 52,
-                    child:
-                        ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : _login,
-                      style:
-                          ElevatedButton
-                              .styleFrom(
-                        backgroundColor:
-                            primaryColor,
-                        foregroundColor:
-                            Colors.white,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
                         disabledBackgroundColor:
-                            primaryColor
-                                .withValues(
-                          alpha: 0.5,
-                        ),
+                            primaryColor.withValues(alpha: 0.5),
                         elevation: 0,
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            14,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                       child: _isLoading
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child:
-                                  CircularProgressIndicator(
-                                strokeWidth:
-                                    2.5,
-                                color:
-                                    Colors.white,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
                               ),
                             )
                           : const Text(
                               'Login',
-                              style:
-                                  TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
-                                fontWeight:
-                                    FontWeight
-                                        .w700,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
 
                   // ------------------------------------------------
                   // OR
@@ -1196,100 +996,59 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Divider(
-                          color: Colors
-                              .grey
-                              .shade300,
-                        ),
+                        child: Divider(color: Colors.grey.shade300),
                       ),
                       const Padding(
-                        padding:
-                            EdgeInsets
-                                .symmetric(
-                          horizontal: 12,
-                        ),
+                        padding: EdgeInsets.symmetric(horizontal: 12),
                         child: Text(
                           'OR',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color:
-                                secondaryText,
-                            fontWeight:
-                                FontWeight
-                                    .w600,
+                            color: secondaryText,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                       Expanded(
-                        child: Divider(
-                          color: Colors
-                              .grey
-                              .shade300,
-                        ),
+                        child: Divider(color: Colors.grey.shade300),
                       ),
                     ],
                   ),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
 
                   // ------------------------------------------------
                   // GOOGLE
                   // ------------------------------------------------
 
                   SizedBox(
-                    width:
-                        double.infinity,
+                    width: double.infinity,
                     height: 52,
-                    child:
-                        OutlinedButton.icon(
-                      onPressed: _isLoading
-                          ? null
-                          : _googleLogin,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _googleLogin,
                       icon: const Icon(
-                        Icons
-                            .g_mobiledata_rounded,
+                        Icons.g_mobiledata_rounded,
                         size: 30,
                       ),
                       label: const Text(
                         'Continue with Google',
-                        style:
-                            TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          fontWeight:
-                              FontWeight
-                                  .w600,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      style:
-                          OutlinedButton
-                              .styleFrom(
-                        foregroundColor:
-                            Colors.black87,
-                        backgroundColor:
-                            Colors.white,
-                        side: BorderSide(
-                          color: Colors
-                              .grey
-                              .shade300,
-                        ),
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            14,
-                          ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                        backgroundColor: Colors.white,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 22,
-                  ),
+                  const SizedBox(height: 22),
 
                   // ------------------------------------------------
                   // SIGN UP
@@ -1297,34 +1056,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   Center(
                     child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment
-                              .center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
                           "Don't have an account? ",
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 13.5,
-                            color:
-                                secondaryText,
+                            color: secondaryText,
                           ),
                         ),
                         GestureDetector(
-                          onTap: _isLoading
-                              ? null
-                              : _openSignup,
-                          child:
-                              const Text(
+                          onTap: _isLoading ? null : _openSignup,
+                          child: const Text(
                             'Sign Up',
-                            style:
-                                TextStyle(
+                            style: TextStyle(
                               fontSize: 13.5,
-                              fontWeight:
-                                  FontWeight
-                                      .w700,
-                              color:
-                                  primaryColor,
+                              fontWeight: FontWeight.w700,
+                              color: primaryColor,
                             ),
                           ),
                         ),
@@ -1332,75 +1080,51 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
 
                   // ------------------------------------------------
                   // PRIVACY + TERMS
                   // ------------------------------------------------
 
                   Wrap(
-                    alignment:
-                        WrapAlignment
-                            .center,
+                    alignment: WrapAlignment.center,
                     children: [
                       GestureDetector(
-                        onTap:
-                            _openPrivacyPolicy,
-                        child:
-                            const Text(
+                        onTap: _openPrivacyPolicy,
+                        child: const Text(
                           'Privacy Policy',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
-                            fontWeight:
-                                FontWeight
-                                    .w600,
-                            color:
-                                primaryColor,
+                            fontWeight: FontWeight.w600,
+                            color: primaryColor,
                           ),
                         ),
                       ),
                       const Padding(
-                        padding:
-                            EdgeInsets
-                                .symmetric(
-                          horizontal: 8,
-                        ),
+                        padding: EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
                           '•',
-                          style:
-                              TextStyle(
-                            color:
-                                secondaryText,
+                          style: TextStyle(
+                            color: secondaryText,
                             fontSize: 12,
                           ),
                         ),
                       ),
                       GestureDetector(
-                        onTap:
-                            _openTermsConditions,
-                        child:
-                            const Text(
+                        onTap: _openTermsConditions,
+                        child: const Text(
                           'Terms & Conditions',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
-                            fontWeight:
-                                FontWeight
-                                    .w600,
-                            color:
-                                primaryColor,
+                            fontWeight: FontWeight.w600,
+                            color: primaryColor,
                           ),
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   const Text(
                     '© 2026 Orgaflow',
@@ -1410,9 +1134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
