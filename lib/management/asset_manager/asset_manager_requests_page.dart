@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,19 +20,21 @@ class AssetManagerRequestsPage extends StatefulWidget {
 class _AssetManagerRequestsPageState
     extends State<AssetManagerRequestsPage> {
   // ============================================================
-  // BACKEND URL
+  // API CONFIG
   // ============================================================
+
+  // Physical Android phone + USB:
+  // adb reverse tcp:8000 tcp:8000
   //
-  // Android Emulator:
-  // http://10.0.2.2:8000
-  //
-  // Real Phone:
-  // http://YOUR_PC_IP:8000
-  //
-  // Example:
-  // http://192.168.1.5:8000
-  //
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  // Then Flutter can access FastAPI using:
+  // http://127.0.0.1:8000
+  static const String baseUrl = 'http://127.0.0.1:8000';
+
+  static const Duration requestTimeout = Duration(seconds: 30);
+
+  // ============================================================
+  // STATE
+  // ============================================================
 
   List<Map<String, dynamic>> requests = [];
 
@@ -56,134 +59,533 @@ class _AssetManagerRequestsPageState
   }
 
   // ============================================================
-  // LOAD ALL REQUESTS
+  // TOKEN
   // ============================================================
 
-  Future<void> _loadRequests() async {
-    if (!mounted) return;
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
+    // New/current token key
+    final accessToken = prefs.getString('access_token');
+
+    if (accessToken != null && accessToken.trim().isNotEmpty) {
+      return accessToken.trim();
+    }
+
+    // Backward compatibility
+    final token = prefs.getString('token');
+
+    if (token != null && token.trim().isNotEmpty) {
+      return token.trim();
+    }
+
+    final accessTokenOld = prefs.getString('accessToken');
+
+    if (accessTokenOld != null && accessTokenOld.trim().isNotEmpty) {
+      return accessTokenOld.trim();
+    }
+
+    final jwt = prefs.getString('jwt');
+
+    if (jwt != null && jwt.trim().isNotEmpty) {
+      return jwt.trim();
+    }
+
+    return null;
+  }
+
+  // ============================================================
+  // LOAD REQUESTS
+  // ============================================================
+
+  Future<void> _loadRequests({
+    bool showRefreshLoader = false,
+  }) async {
+    if (showRefreshLoader) {
+      setState(() {
+        isRefreshing = true;
+      });
+    } else {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-
-      final token = prefs.getString('token');
+      final token = await _getToken();
 
       if (token == null || token.isEmpty) {
         throw Exception(
-          'Login session not found. Please login again.',
+          'Login token not found. Please login again.',
         );
       }
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/requests'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (!mounted) return;
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/requests'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(requestTimeout);
 
       if (response.statusCode == 200) {
         final dynamic decoded = jsonDecode(response.body);
 
-        List<dynamic> rawRequests = [];
+        List<dynamic> data = [];
 
+        // Backend response:
+        // {
+        //   "requests": [...]
+        // }
         if (decoded is Map<String, dynamic>) {
           if (decoded['requests'] is List) {
-            rawRequests = decoded['requests'];
+            data = decoded['requests'];
           } else if (decoded['data'] is List) {
-            rawRequests = decoded['data'];
+            data = decoded['data'];
           }
-        } else if (decoded is List) {
-          rawRequests = decoded;
         }
 
-        final loadedRequests = rawRequests
+        // If backend directly returns a list
+        if (decoded is List) {
+          data = decoded;
+        }
+
+        final loadedRequests = data
             .whereType<Map>()
             .map(
-              (request) => Map<String, dynamic>.from(request),
+              (item) => Map<String, dynamic>.from(item),
             )
             .toList();
 
+        if (!mounted) return;
+
         setState(() {
           requests = loadedRequests;
+          errorMessage = null;
           isLoading = false;
+          isRefreshing = false;
         });
-      } else if (response.statusCode == 401 ||
-          response.statusCode == 403) {
-        String message =
-            'You are not authorized to manage requests.';
-
-        try {
-          final body = jsonDecode(response.body);
-
-          if (body is Map && body['detail'] != null) {
-            message = body['detail'].toString();
-          }
-        } catch (_) {}
+      } else if (response.statusCode == 401) {
+        if (!mounted) return;
 
         setState(() {
           isLoading = false;
-          errorMessage = message;
+          isRefreshing = false;
+          errorMessage =
+              'Session expired. Please login again.';
+        });
+      } else if (response.statusCode == 403) {
+        if (!mounted) return;
+
+        setState(() {
+          isLoading = false;
+          isRefreshing = false;
+          errorMessage =
+              'You are not authorized to view requests.';
         });
       } else {
-        String message = 'Unable to load requests.';
+        String message = 'Failed to load requests.';
 
         try {
           final body = jsonDecode(response.body);
 
-          if (body is Map && body['detail'] != null) {
-            message = body['detail'].toString();
-          } else if (body is Map && body['message'] != null) {
-            message = body['message'].toString();
+          if (body is Map<String, dynamic>) {
+            message =
+                body['detail']?.toString() ??
+                body['message']?.toString() ??
+                message;
           }
         } catch (_) {}
 
+        if (!mounted) return;
+
         setState(() {
           isLoading = false;
-          errorMessage = message;
+          isRefreshing = false;
+          errorMessage =
+              '$message\nStatus: ${response.statusCode}';
         });
       }
+    } on http.ClientException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        isRefreshing = false;
+        errorMessage =
+            'Network error.\n${e.message}';
+      });
+    } on FormatException {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        isRefreshing = false;
+        errorMessage =
+            'Invalid response received from server.';
+      });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         isLoading = false;
-        errorMessage = _cleanError(e);
+        isRefreshing = false;
+        errorMessage = e.toString().replaceFirst(
+          'Exception: ',
+          '',
+        );
       });
     }
   }
 
   // ============================================================
-  // REFRESH
+  // STATUS UPDATE
   // ============================================================
 
-  Future<void> _refreshRequests() async {
-    if (isRefreshing) return;
-
-    setState(() {
-      isRefreshing = true;
-    });
-
+  Future<bool> _updateRequestStatus({
+    required int requestId,
+    required String status,
+    String? rejectionReason,
+  }) async {
     try {
-      await _loadRequests();
-    } finally {
-      if (mounted) {
-        setState(() {
-          isRefreshing = false;
-        });
+      final token = await _getToken();
+
+      if (token == null || token.isEmpty) {
+        _showSnackBar(
+          'Login session not found. Please login again.',
+          isError: true,
+        );
+        return false;
       }
+
+      final response = await http
+          .patch(
+            Uri.parse(
+              '$baseUrl/api/requests/$requestId/status',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'status': status,
+              'rejection_reason': rejectionReason,
+            }),
+          )
+          .timeout(requestTimeout);
+
+      if (response.statusCode == 200) {
+        return true;
+      }
+
+      if (response.statusCode == 401) {
+        _showSnackBar(
+          'Session expired. Please login again.',
+          isError: true,
+        );
+        return false;
+      }
+
+      if (response.statusCode == 403) {
+        _showSnackBar(
+          'You are not authorized to update requests.',
+          isError: true,
+        );
+        return false;
+      }
+
+      String message = 'Unable to update request.';
+
+      try {
+        final body = jsonDecode(response.body);
+
+        if (body is Map<String, dynamic>) {
+          message =
+              body['detail']?.toString() ??
+              body['message']?.toString() ??
+              message;
+        }
+      } catch (_) {}
+
+      _showSnackBar(
+        '$message\nStatus: ${response.statusCode}',
+        isError: true,
+      );
+
+      return false;
+    } on http.ClientException catch (e) {
+      _showSnackBar(
+        'Network error: ${e.message}',
+        isError: true,
+      );
+      return false;
+    } on FormatException {
+      _showSnackBar(
+        'Invalid server response.',
+        isError: true,
+      );
+      return false;
+    } catch (e) {
+      _showSnackBar(
+        e.toString().replaceFirst(
+          'Exception: ',
+          '',
+        ),
+        isError: true,
+      );
+      return false;
     }
   }
 
   // ============================================================
-  // FILTER
+  // APPROVE
   // ============================================================
+
+  Future<void> _approveRequest(
+    Map<String, dynamic> request,
+  ) async {
+    final requestId = _getRequestId(request);
+
+    if (requestId == null) {
+      _showSnackBar(
+        'Request ID not found.',
+        isError: true,
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Approve Request'),
+          content: Text(
+            'Are you sure you want to approve '
+            '${_getRequestCode(request)}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text('Approve'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    _showLoadingDialog('Approving request...');
+
+    final success = await _updateRequestStatus(
+      requestId: requestId,
+      status: 'Approved',
+      rejectionReason: null,
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (success) {
+      _showSnackBar(
+        'Request approved successfully.',
+      );
+
+      await _loadRequests();
+    }
+  }
+
+  // ============================================================
+  // REJECT
+  // ============================================================
+
+  Future<void> _rejectRequest(
+    Map<String, dynamic> request,
+  ) async {
+    final requestId = _getRequestId(request);
+
+    if (requestId == null) {
+      _showSnackBar(
+        'Request ID not found.',
+        isError: true,
+      );
+      return;
+    }
+
+    final reasonController = TextEditingController();
+
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Not Approve Request'),
+          content: TextField(
+            controller: reasonController,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Enter rejection reason',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value =
+                    reasonController.text.trim();
+
+                if (value.isEmpty) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please enter rejection reason.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context, value);
+              },
+              child: const Text('Not Approve'),
+            ),
+          ],
+        );
+      },
+    );
+
+    reasonController.dispose();
+
+    if (reason == null || reason.trim().isEmpty) {
+      return;
+    }
+
+    _showLoadingDialog(
+      'Updating request...',
+    );
+
+    final success = await _updateRequestStatus(
+      requestId: requestId,
+      status: 'Rejected',
+      rejectionReason: reason.trim(),
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (success) {
+      _showSnackBar(
+        'Request marked as not approved.',
+      );
+
+      await _loadRequests();
+    }
+  }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  int? _getRequestId(
+    Map<String, dynamic> request,
+  ) {
+    final value = request['id'];
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is String) {
+      return int.tryParse(value);
+    }
+
+    return null;
+  }
+
+  String _getRequestCode(
+    Map<String, dynamic> request,
+  ) {
+    return request['request_code']?.toString() ??
+        'REQ-${request['id'] ?? '---'}';
+  }
+
+  String _getString(
+    Map<String, dynamic> request,
+    String key, {
+    String fallback = 'N/A',
+  }) {
+    final value = request[key];
+
+    if (value == null) return fallback;
+
+    final text = value.toString().trim();
+
+    if (text.isEmpty) return fallback;
+
+    return text;
+  }
+
+  String _getStatus(
+    Map<String, dynamic> request,
+  ) {
+    return _getString(
+      request,
+      'status',
+      fallback: 'Pending',
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+
+      case 'rejected':
+      case 'not approved':
+      case 'not_approved':
+        return Colors.red;
+
+      case 'pending':
+      default:
+        return Colors.orange;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Icons.check_circle;
+
+      case 'rejected':
+      case 'not approved':
+      case 'not_approved':
+        return Icons.cancel;
+
+      case 'pending':
+      default:
+        return Icons.pending_actions;
+    }
+  }
 
   List<Map<String, dynamic>> get filteredRequests {
     if (selectedFilter == 'All') {
@@ -191,60 +593,45 @@ class _AssetManagerRequestsPageState
     }
 
     return requests.where((request) {
-      return _statusForDisplay(request).toLowerCase() ==
-          selectedFilter.toLowerCase();
+      final status =
+          _getStatus(request).toLowerCase();
+
+      switch (selectedFilter) {
+        case 'Pending':
+          return status == 'pending';
+
+        case 'Approved':
+          return status == 'approved';
+
+        case 'Not Approved':
+          return status == 'rejected' ||
+              status == 'not approved' ||
+              status == 'not_approved';
+
+        default:
+          return true;
+      }
     }).toList();
   }
 
-  // ============================================================
-  // STATUS
-  // ============================================================
-
-  String _rawStatus(Map<String, dynamic> request) {
-    return (request['status'] ?? 'Pending')
-        .toString()
-        .trim();
-  }
-
-  String _statusForDisplay(Map<String, dynamic> request) {
-    final status = _rawStatus(request).toLowerCase();
-
-    if (status == 'pending') {
-      return 'Pending';
-    }
-
-    if (status == 'approved') {
-      return 'Approved';
-    }
-
-    if (status == 'rejected' ||
-        status == 'not approved' ||
-        status == 'not_approved') {
-      return 'Not Approved';
-    }
-
-    return _rawStatus(request);
-  }
-
-  // ============================================================
-  // COUNTS
-  // ============================================================
-
   int get pendingCount {
     return requests.where((request) {
-      return _rawStatus(request).toLowerCase() == 'pending';
+      return _getStatus(request).toLowerCase() ==
+          'pending';
     }).length;
   }
 
   int get approvedCount {
     return requests.where((request) {
-      return _rawStatus(request).toLowerCase() == 'approved';
+      return _getStatus(request).toLowerCase() ==
+          'approved';
     }).length;
   }
 
   int get rejectedCount {
     return requests.where((request) {
-      final status = _rawStatus(request).toLowerCase();
+      final status =
+          _getStatus(request).toLowerCase();
 
       return status == 'rejected' ||
           status == 'not approved' ||
@@ -253,722 +640,59 @@ class _AssetManagerRequestsPageState
   }
 
   // ============================================================
-  // HELPERS
+  // UI HELPERS
   // ============================================================
 
-  String _stringValue(
-    Map<String, dynamic> request,
-    String key, {
-    String fallback = '',
-  }) {
-    final value = request[key];
-
-    if (value == null) {
-      return fallback;
-    }
-
-    final text = value.toString().trim();
-
-    if (text.isEmpty) {
-      return fallback;
-    }
-
-    return text;
-  }
-
-  String _cleanError(Object error) {
-    String message = error.toString();
-
-    if (message.startsWith('Exception: ')) {
-      message = message.substring(11);
-    }
-
-    return message;
-  }
-
-  String _formatDate(dynamic value) {
-    if (value == null) {
-      return 'Not available';
-    }
-
-    final text = value.toString().trim();
-
-    if (text.isEmpty) {
-      return 'Not available';
-    }
-
-    try {
-      final date = DateTime.parse(text).toLocal();
-
-      final day = date.day.toString().padLeft(2, '0');
-      final month = date.month.toString().padLeft(2, '0');
-      final year = date.year.toString();
-
-      final hour12 = date.hour == 0
-          ? 12
-          : date.hour > 12
-              ? date.hour - 12
-              : date.hour;
-
-      final hour = hour12.toString().padLeft(2, '0');
-      final minute = date.minute.toString().padLeft(2, '0');
-
-      final period = date.hour >= 12 ? 'PM' : 'AM';
-
-      return '$day/$month/$year • $hour:$minute $period';
-    } catch (_) {
-      return text;
-    }
-  }
-
-  // ============================================================
-  // STATUS COLORS
-  // ============================================================
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return const Color(0xFF168A55);
-
-      case 'not approved':
-      case 'rejected':
-        return const Color(0xFFD93025);
-
-      case 'pending':
-      default:
-        return const Color(0xFFD98200);
-    }
-  }
-
-  Color _statusBackground(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return const Color(0xFFE8F7EF);
-
-      case 'not approved':
-      case 'rejected':
-        return const Color(0xFFFFECEB);
-
-      case 'pending':
-      default:
-        return const Color(0xFFFFF4DF);
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return Icons.check_circle_outline;
-
-      case 'not approved':
-      case 'rejected':
-        return Icons.cancel_outlined;
-
-      case 'pending':
-      default:
-        return Icons.access_time_rounded;
-    }
-  }
-
-  Color _priorityColor(String priority) {
-    switch (priority.toLowerCase()) {
-      case 'urgent':
-      case 'high':
-        return const Color(0xFFD93025);
-
-      case 'medium':
-        return const Color(0xFFD98200);
-
-      case 'normal':
-      case 'low':
-      default:
-        return const Color(0xFF3157D5);
-    }
-  }
-
-  // ============================================================
-  // APPROVE REQUEST
-  // ============================================================
-
-  Future<void> _approveRequest(
-    Map<String, dynamic> request,
-  ) async {
-    final requestId = request['id'];
-
-    if (requestId == null) {
-      _showMessage(
-        'Request ID is missing.',
-        isError: true,
-      );
-      return;
-    }
-
-    final confirmed = await _showApproveConfirmation(
-      request,
-    );
-
-    if (!confirmed) return;
-
-    await _updateRequestStatus(
-      requestId: requestId,
-      status: 'Approved',
-    );
-  }
-
-  // ============================================================
-  // REJECT / NOT APPROVE REQUEST
-  // ============================================================
-
-  Future<void> _rejectRequest(
-    Map<String, dynamic> request,
-  ) async {
-    final requestId = request['id'];
-
-    if (requestId == null) {
-      _showMessage(
-        'Request ID is missing.',
-        isError: true,
-      );
-      return;
-    }
-
-    final reason = await _showRejectDialog();
-
-    if (reason == null) {
-      return;
-    }
-
-    final trimmedReason = reason.trim();
-
-    if (trimmedReason.isEmpty) {
-      return;
-    }
-
-    await _updateRequestStatus(
-      requestId: requestId,
-      status: 'Rejected',
-      rejectionReason: trimmedReason,
-    );
-  }
-
-  // ============================================================
-  // UPDATE STATUS API
-  // ============================================================
-
-  Future<void> _updateRequestStatus({
-    required dynamic requestId,
-    required String status,
-    String? rejectionReason,
-  }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        _showMessage(
-          'Login session expired. Please login again.',
-          isError: true,
-        );
-        return;
-      }
-
-      final response = await http.patch(
-        Uri.parse(
-          '$baseUrl/api/requests/$requestId/status',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'status': status,
-          'rejection_reason': rejectionReason,
-        }),
-      );
-
-      if (!mounted) return;
-
-      if (response.statusCode >= 200 &&
-          response.statusCode < 300) {
-        String successMessage;
-
-        if (status == 'Approved') {
-          successMessage =
-              'Request approved successfully.';
-        } else {
-          successMessage =
-              'Request marked as Not Approved.';
-        }
-
-        _showMessage(successMessage);
-
-        // IMPORTANT:
-        // Reload from backend.
-        // We don't just modify local list.
-        await _loadRequests();
-      } else {
-        String message =
-            'Unable to update request status.';
-
-        try {
-          final body = jsonDecode(response.body);
-
-          if (body is Map && body['detail'] != null) {
-            message = body['detail'].toString();
-          } else if (body is Map && body['message'] != null) {
-            message = body['message'].toString();
-          }
-        } catch (_) {}
-
-        _showMessage(
-          message,
-          isError: true,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      _showMessage(
-        _cleanError(e),
-        isError: true,
-      );
-    }
-  }
-
-  // ============================================================
-  // APPROVE CONFIRMATION
-  // ============================================================
-
-  Future<bool> _showApproveConfirmation(
-    Map<String, dynamic> request,
-  ) async {
-    final requestCode = _stringValue(
-      request,
-      'request_code',
-      fallback: 'this request',
-    );
-
-    final assetName = _stringValue(
-      request,
-      'asset_name',
-      fallback: 'selected asset',
-    );
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Approve Request?',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF172033),
-            ),
-          ),
-
-          content: Text(
-            'Are you sure you want to approve $requestCode for $assetName?',
-            style: const TextStyle(
-              height: 1.5,
-              color: Color(0xFF5E6675),
-            ),
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('Cancel'),
-            ),
-
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(0xFF168A55),
-                foregroundColor: Colors.white,
-                elevation: 0,
-              ),
-              child: const Text('Approve'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return result ?? false;
-  }
-
-  // ============================================================
-  // REJECTION DIALOG
-  // ============================================================
-
-  Future<String?> _showRejectDialog() async {
-    final controller = TextEditingController();
-
-    String? errorText;
-
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text(
-                'Not Approve Request',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF172033),
-                ),
-              ),
-
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Please enter the reason why this request is not approved.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: Color(0xFF697181),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  TextField(
-                    controller: controller,
-                    maxLines: 5,
-                    maxLength: 500,
-                    decoration: InputDecoration(
-                      hintText:
-                          'Enter rejection reason...',
-                      errorText: errorText,
-                      filled: true,
-                      fillColor:
-                          const Color(0xFFF6F8FC),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(13),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE1E5EE),
-                        ),
-                      ),
-                      enabledBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(13),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE1E5EE),
-                        ),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(13),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF3157D5),
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
-                ),
-
-                ElevatedButton(
-                  onPressed: () {
-                    final reason =
-                        controller.text.trim();
-
-                    if (reason.isEmpty) {
-                      setDialogState(() {
-                        errorText =
-                            'Rejection reason is required.';
-                      });
-                      return;
-                    }
-
-                    Navigator.pop(
-                      context,
-                      reason,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        const Color(0xFFD93025),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Not Approve',
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-
-    return result;
-  }
-
-  // ============================================================
-  // MESSAGE
-  // ============================================================
-
-  void _showMessage(
+  void _showSnackBar(
     String message, {
     bool isError = false,
   }) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: isError
-              ? const Color(0xFFD93025)
-              : const Color(0xFF168A55),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(12),
-          ),
-        ),
-      );
-  }
-
-  // ============================================================
-  // STATUS BADGE
-  // ============================================================
-
-  Widget _statusBadge(String status) {
-    final color = _statusColor(status);
-    final background =
-        _statusBackground(status);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 7,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _statusIcon(status),
-            size: 16,
-            color: color,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            status,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor:
+            isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  // ============================================================
-  // DETAIL ROW
-  // ============================================================
-
-  Widget _detailRow(
-    IconData icon,
-    String title,
-    String value, {
-    Color? valueColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        bottom: 13,
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F3FA),
-              borderRadius:
-                  BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              size: 19,
-              color: const Color(0xFF3157D5),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF7A8190),
-                    fontWeight: FontWeight.w600,
-                  ),
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color:
-                        valueColor ??
-                        const Color(0xFF252B38),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Text(message),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   // ============================================================
-  // SHOW FULL DETAILS
+  // REQUEST DETAILS
   // ============================================================
 
   void _showRequestDetails(
     Map<String, dynamic> request,
   ) {
-    final requestCode = _stringValue(
-      request,
-      'request_code',
-      fallback: 'Request',
-    );
-
-    final employeeName = _stringValue(
-      request,
-      'employee_name',
-      fallback: _stringValue(
-        request,
-        'employeeName',
-        fallback: 'Employee',
-      ),
-    );
-
-    final employeeEmail = _stringValue(
-      request,
-      'employee_email',
-      fallback: _stringValue(
-        request,
-        'employeeEmail',
-        fallback: 'N/A',
-      ),
-    );
-
-    final department = _stringValue(
-      request,
-      'department',
-      fallback: 'N/A',
-    );
-
-    final assetName = _stringValue(
-      request,
-      'asset_name',
-      fallback: _stringValue(
-        request,
-        'assetName',
-        fallback: 'Asset',
-      ),
-    );
-
-    final assetId = _stringValue(
-      request,
-      'asset_id',
-      fallback: _stringValue(
-        request,
-        'assetId',
-        fallback: 'N/A',
-      ),
-    );
-
-    final category = _stringValue(
-      request,
-      'asset_category',
-      fallback: 'N/A',
-    );
-
-    final brand = _stringValue(
-      request,
-      'asset_brand',
-      fallback: 'N/A',
-    );
-
-    final model = _stringValue(
-      request,
-      'asset_model',
-      fallback: 'N/A',
-    );
-
-    final priority = _stringValue(
-      request,
-      'priority',
-      fallback: 'Normal',
-    );
-
-    final description = _stringValue(
-      request,
-      'description',
-      fallback: 'No description provided.',
-    );
-
-    final status = _statusForDisplay(request);
-
-    final rejectionReason = _stringValue(
-      request,
-      'rejection_reason',
-    );
-
-    final createdAt =
-        request['created_at'] ??
-        request['createdAt'];
-
-    final reviewedAt =
-        request['reviewed_at'] ??
-        request['reviewedAt'];
+    final status = _getStatus(request);
 
     showModalBottomSheet(
       context: context,
@@ -976,352 +700,338 @@ class _AssetManagerRequestsPageState
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          constraints: BoxConstraints(
-            maxHeight:
-                MediaQuery.of(context).size.height *
-                0.90,
-          ),
+          height:
+              MediaQuery.of(context).size.height * 0.88,
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(
-              top: Radius.circular(28),
+              top: Radius.circular(24),
             ),
           ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              28,
-            ),
+          child: SafeArea(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 45,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color:
-                          const Color(0xFFD7DBE5),
-                      borderRadius:
-                          BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        requestCode,
-                        style: const TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF172033),
-                        ),
-                      ),
-                    ),
-                    _statusBadge(status),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                _detailSectionTitle(
-                  'Employee Information',
-                ),
-
-                const SizedBox(height: 12),
-
-                _detailRow(
-                  Icons.person_outline,
-                  'Employee Name',
-                  employeeName,
-                ),
-
-                _detailRow(
-                  Icons.email_outlined,
-                  'Email',
-                  employeeEmail,
-                ),
-
-                _detailRow(
-                  Icons.business_outlined,
-                  'Department',
-                  department,
-                ),
-
                 const SizedBox(height: 10),
-
-                _detailSectionTitle(
-                  'Asset Information',
-                ),
-
-                const SizedBox(height: 12),
-
-                _detailRow(
-                  Icons.inventory_2_outlined,
-                  'Asset Name',
-                  assetName,
-                ),
-
-                _detailRow(
-                  Icons.qr_code_2_rounded,
-                  'Asset ID',
-                  assetId,
-                ),
-
-                _detailRow(
-                  Icons.category_outlined,
-                  'Category',
-                  category,
-                ),
-
-                _detailRow(
-                  Icons.business_center_outlined,
-                  'Brand',
-                  brand,
-                ),
-
-                _detailRow(
-                  Icons.devices_other_outlined,
-                  'Model',
-                  model,
-                ),
-
-                const SizedBox(height: 10),
-
-                _detailSectionTitle(
-                  'Request Information',
-                ),
-
-                const SizedBox(height: 12),
-
-                _detailRow(
-                  Icons.flag_outlined,
-                  'Priority',
-                  priority,
-                  valueColor:
-                      _priorityColor(priority),
-                ),
-
-                _detailRow(
-                  Icons.calendar_today_outlined,
-                  'Submitted',
-                  _formatDate(createdAt),
-                ),
-
-                if (reviewedAt != null)
-                  _detailRow(
-                    Icons.fact_check_outlined,
-                    'Reviewed',
-                    _formatDate(reviewedAt),
-                  ),
-
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Employee Requirement / Reason',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF172033),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
 
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  width: 45,
+                  height: 5,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F8FC),
+                    color: Colors.grey.shade300,
                     borderRadius:
-                        BorderRadius.circular(14),
-                    border: Border.all(
-                      color:
-                          const Color(0xFFE4E7EF),
-                    ),
-                  ),
-                  child: Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: Color(0xFF4D5566),
-                    ),
+                        BorderRadius.circular(10),
                   ),
                 ),
 
-                if (status == 'Not Approved' &&
-                    rejectionReason.isNotEmpty) ...[
-                  const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
-                  const Text(
-                    'Rejection Reason',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFD93025),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
                   ),
-
-                  const SizedBox(height: 8),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color:
-                          const Color(0xFFFFF1F0),
-                      borderRadius:
-                          BorderRadius.circular(14),
-                      border: Border.all(
-                        color:
-                            const Color(0xFFFFD2CE),
-                      ),
-                    ),
-                    child: Text(
-                      rejectionReason,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                        color: Color(0xFF8B2A22),
-                      ),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-
-                // =================================================
-                // ACTION BUTTONS
-                // =================================================
-
-                if (status == 'Pending')
-                  Row(
+                  child: Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-
-                            _rejectRequest(
-                              request,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.close_rounded,
-                          ),
-                          label: const Text(
-                            'Not Approve',
-                          ),
-                          style:
-                              OutlinedButton.styleFrom(
-                            foregroundColor:
-                                const Color(
-                              0xFFD93025,
-                            ),
-                            side:
-                                const BorderSide(
-                              color:
-                                  Color(0xFFD93025),
-                            ),
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              vertical: 14,
-                            ),
-                            shape:
-                                RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(13),
-                            ),
+                      const Expanded(
+                        child: Text(
+                          'Request Details',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
 
-                      const SizedBox(width: 10),
-
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-
-                            _approveRequest(
-                              request,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.check_rounded,
-                          ),
-                          label: const Text(
-                            'Approve',
-                          ),
-                          style:
-                              ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color(
-                              0xFF168A55,
-                            ),
-                            foregroundColor:
-                                Colors.white,
-                            elevation: 0,
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              vertical: 14,
-                            ),
-                            shape:
-                                RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(13),
-                            ),
-                          ),
-                        ),
+                      IconButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        icon:
+                            const Icon(Icons.close),
                       ),
                     ],
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      style:
-                          ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color(
-                          0xFF3157D5,
+                  ),
+                ),
+
+                const Divider(),
+
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding:
+                        const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        _detailCard(
+                          title: 'Request Information',
+                          children: [
+                            _detailRow(
+                              'Request Code',
+                              _getRequestCode(
+                                request,
+                              ),
+                            ),
+                            _detailRow(
+                              'Status',
+                              status,
+                              valueWidget:
+                                  _statusBadge(
+                                status,
+                              ),
+                            ),
+                            _detailRow(
+                              'Priority',
+                              _getString(
+                                request,
+                                'priority',
+                              ),
+                            ),
+                            _detailRow(
+                              'Created At',
+                              _formatDate(
+                                request[
+                                    'created_at'],
+                              ),
+                            ),
+                            _detailRow(
+                              'Reviewed At',
+                              _formatDate(
+                                request[
+                                    'reviewed_at'],
+                              ),
+                            ),
+                          ],
                         ),
-                        foregroundColor:
-                            Colors.white,
-                        elevation: 0,
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(
-                            13,
+
+                        const SizedBox(height: 16),
+
+                        _detailCard(
+  title: 'Employee Information',
+  children: [
+    _detailRow(
+      'Name',
+      _getString(
+        request,
+        'employee_name',
+      ),
+    ),
+    _detailRow(
+      'Email',
+      _getString(
+        request,
+        'employee_email',
+      ),
+    ),
+    _detailRow(
+      'Department',
+      _getString(
+        request,
+        'department',
+      ),
+    ),
+  ],
+),
+
+                        const SizedBox(height: 16),
+
+                        _detailCard(
+                          title: 'Asset Information',
+                          children: [
+                            _detailRow(
+                              'Asset',
+                              _getString(
+                                request,
+                                'asset_name',
+                              ),
+                            ),
+                            _detailRow(
+                              'Asset ID',
+                              _getString(
+                                request,
+                                'asset_id',
+                              ),
+                            ),
+                            _detailRow(
+                              'Category',
+                              _getString(
+                                request,
+                                'asset_category',
+                              ),
+                            ),
+                            _detailRow(
+                              'Brand',
+                              _getString(
+                                request,
+                                'asset_brand',
+                              ),
+                            ),
+                            _detailRow(
+                              'Model',
+                              _getString(
+                                request,
+                                'asset_model',
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        _detailCard(
+                          title: 'Description',
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding:
+                                  const EdgeInsets.all(
+                                14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors
+                                    .grey.shade50,
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  12,
+                                ),
+                              ),
+                              child: Text(
+                                _getString(
+                                  request,
+                                  'description',
+                                  fallback:
+                                      'No description provided.',
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (_getString(
+                              request,
+                              'rejection_reason',
+                              fallback: '',
+                            ).isNotEmpty) ...[
+                          const SizedBox(height: 16),
+
+                          _detailCard(
+                            title:
+                                'Rejection Reason',
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                padding:
+                                    const EdgeInsets
+                                        .all(14),
+                                decoration:
+                                    BoxDecoration(
+                                  color:
+                                      Colors.red.shade50,
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(12),
+                                ),
+                                child: Text(
+                                  _getString(
+                                    request,
+                                    'rejection_reason',
+                                  ),
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                      child: const Text(
-                        'Close',
-                        style: TextStyle(
-                          fontWeight:
-                              FontWeight.w700,
-                        ),
-                      ),
+                        ],
+
+                        const SizedBox(height: 24),
+
+                        if (status.toLowerCase() ==
+                            'pending')
+                          Row(
+                            children: [
+                              Expanded(
+                                child:
+                                    OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      context,
+                                    );
+                                    _rejectRequest(
+                                      request,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.red,
+                                  ),
+                                  label: const Text(
+                                    'Not Approve',
+                                  ),
+                                  style:
+                                      OutlinedButton
+                                          .styleFrom(
+                                    foregroundColor:
+                                        Colors.red,
+                                    side:
+                                        const BorderSide(
+                                      color: Colors.red,
+                                    ),
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child:
+                                    ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      context,
+                                    );
+                                    _approveRequest(
+                                      request,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.check,
+                                  ),
+                                  label: const Text(
+                                    'Approve',
+                                  ),
+                                  style:
+                                      ElevatedButton
+                                          .styleFrom(
+                                    backgroundColor:
+                                        Colors.green,
+                                    foregroundColor:
+                                        Colors.white,
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -1330,13 +1040,208 @@ class _AssetManagerRequestsPageState
     );
   }
 
-  Widget _detailSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w800,
-        color: Color(0xFF172033),
+  Widget _detailCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(
+    String title,
+    String value, {
+    Widget? valueWidget,
+  }) {
+    return Padding(
+      padding:
+          const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 105,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: valueWidget ??
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBadge(String status) {
+    final color = _statusColor(status);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.10),
+          borderRadius:
+              BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _statusIcon(status),
+              size: 15,
+              color: color,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              status,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic value) {
+    if (value == null) {
+      return 'N/A';
+    }
+
+    final text = value.toString();
+
+    if (text.isEmpty) {
+      return 'N/A';
+    }
+
+    try {
+      final date = DateTime.parse(text);
+
+      final day =
+          date.day.toString().padLeft(2, '0');
+      final month =
+          date.month.toString().padLeft(2, '0');
+      final year = date.year.toString();
+
+      final hour =
+          date.hour.toString().padLeft(2, '0');
+      final minute =
+          date.minute.toString().padLeft(2, '0');
+
+      return '$day/$month/$year $hour:$minute';
+    } catch (_) {
+      return text;
+    }
+  }
+
+  // ============================================================
+  // SUMMARY CARD
+  // ============================================================
+
+  Widget _summaryCard({
+    required String title,
+    required int count,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.grey.shade200,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '$count',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1348,178 +1253,54 @@ class _AssetManagerRequestsPageState
   Widget _requestCard(
     Map<String, dynamic> request,
   ) {
-    final requestCode = _stringValue(
-      request,
-      'request_code',
-      fallback: 'Request',
-    );
+    final status = _getStatus(request);
+    final statusColor =
+        _statusColor(status);
 
-    final employeeName = _stringValue(
-      request,
-      'employee_name',
-      fallback: 'Employee',
-    );
-
-    final department = _stringValue(
-      request,
-      'department',
-      fallback: 'N/A',
-    );
-
-    final assetName = _stringValue(
-      request,
-      'asset_name',
-      fallback: 'Unknown Asset',
-    );
-
-    final assetId = _stringValue(
-      request,
-      'asset_id',
-      fallback: 'N/A',
-    );
-
-    final priority = _stringValue(
-      request,
-      'priority',
-      fallback: 'Normal',
-    );
-
-    final description = _stringValue(
-      request,
-      'description',
-      fallback: 'No description provided.',
-    );
-
-    final status = _statusForDisplay(request);
-
-    final createdAt =
-        request['created_at'] ??
-        request['createdAt'];
-
-    return GestureDetector(
-      onTap: () {
-        _showRequestDetails(request);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(
-          bottom: 14,
+    return Card(
+      margin:
+          const EdgeInsets.only(bottom: 14),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(18),
+        side: BorderSide(
+          color: Colors.grey.shade200,
         ),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius:
-              BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFFE5E8F0),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color:
-                  Colors.black.withOpacity(0.035),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    requestCode,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF3157D5),
+      ),
+      child: InkWell(
+        borderRadius:
+            BorderRadius.circular(18),
+        onTap: () {
+          _showRequestDetails(request);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(
+                        0xFF3B5BDB,
+                      ).withOpacity(0.10),
+                      borderRadius:
+                          BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: Color(0xFF3B5BDB),
                     ),
                   ),
-                ),
-                _statusBadge(status),
-              ],
-            ),
 
-            const SizedBox(height: 14),
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color:
-                        const Color(0xFFF0F3FA),
-                    borderRadius:
-                        BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.person_outline,
-                    color: Color(0xFF3157D5),
-                    size: 25,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        employeeName,
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight:
-                              FontWeight.w800,
-                          color:
-                              Color(0xFF172033),
-                        ),
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      Text(
-                        department,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color:
-                              Color(0xFF7A8190),
-                          fontWeight:
-                              FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF6F8FC),
-                borderRadius:
-                    BorderRadius.circular(13),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 19,
-                    color: Color(0xFF3157D5),
-                  ),
-
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 12),
 
                   Expanded(
                     child: Column(
@@ -1527,375 +1308,202 @@ class _AssetManagerRequestsPageState
                           CrossAxisAlignment.start,
                       children: [
                         Text(
-                          assetName,
-                          maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
+                          _getString(
+                            request,
+                            'asset_name',
+                            fallback:
+                                'Asset Request',
+                          ),
                           style:
                               const TextStyle(
-                            fontSize: 13,
+                            fontSize: 16,
                             fontWeight:
-                                FontWeight.w800,
-                            color:
-                                Color(0xFF252B38),
+                                FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Text(
-                          'ID: $assetId',
-                          style:
-                              const TextStyle(
-                            fontSize: 11,
-                            color:
-                                Color(0xFF7A8190),
+                          _getRequestCode(
+                            request,
+                          ),
+                          style: TextStyle(
+                            color: Colors
+                                .grey.shade600,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
                   ),
+
+                  _statusBadge(status),
                 ],
               ),
-            ),
 
-            const SizedBox(height: 13),
+              const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _smallInfo(
-                    Icons.flag_outlined,
-                    'Priority',
-                    priority,
-                    valueColor:
-                        _priorityColor(
-                      priority,
-                    ),
-                  ),
+              _compactInfo(
+                Icons.person_outline,
+                _getString(
+                  request,
+                  'employee_name',
                 ),
-
-                Expanded(
-                  child: _smallInfo(
-                    Icons.calendar_today_outlined,
-                    'Submitted',
-                    _formatDate(createdAt),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 13),
-
-            Text(
-              description,
-              maxLines: 2,
-              overflow:
-                  TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.45,
-                color: Color(0xFF606878),
               ),
-            ),
 
-            const SizedBox(height: 14),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      _showRequestDetails(
-                        request,
-                      );
-                    },
-                    style:
-                        OutlinedButton.styleFrom(
-                      foregroundColor:
-                          const Color(
-                        0xFF3157D5,
-                      ),
-                      side:
-                          const BorderSide(
-                        color:
-                            Color(0xFF3157D5),
-                      ),
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        vertical: 11,
-                      ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          11,
-                        ),
-                      ),
-                    ),
-                    child: const Text(
-                      'View Details',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight:
-                            FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (status == 'Pending') ...[
-                  const SizedBox(width: 8),
-
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _approveRequest(
-                          request,
-                        );
-                      },
-                      style:
-                          ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color(
-                          0xFF168A55,
-                        ),
-                        foregroundColor:
-                            Colors.white,
-                        elevation: 0,
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          vertical: 11,
-                        ),
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius
-                                  .circular(11),
-                        ),
-                      ),
-                      child: const Text(
-                        'Approve',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight:
-                              FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-
-            if (status == 'Pending') ...[
               const SizedBox(height: 8),
 
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    _rejectRequest(
-                      request,
-                    );
-                  },
-                  style:
-                      OutlinedButton.styleFrom(
-                    foregroundColor:
-                        const Color(
-                      0xFFD93025,
-                    ),
-                    side:
-                        const BorderSide(
-                      color:
-                          Color(0xFFFFB8B2),
-                    ),
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      vertical: 10,
-                    ),
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                        11,
+              _compactInfo(
+                Icons.business_outlined,
+                _getString(
+                  request,
+                  'department',
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              _compactInfo(
+                Icons.priority_high,
+                'Priority: ${_getString(
+                  request,
+                  'priority',
+                )}',
+              ),
+
+              const SizedBox(height: 8),
+
+              _compactInfo(
+                Icons.calendar_today_outlined,
+                _formatDate(
+                  request['created_at'],
+                ),
+              ),
+
+              if (status.toLowerCase() ==
+                  'pending') ...[
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child:
+                          OutlinedButton(
+                        onPressed: () {
+                          _rejectRequest(
+                            request,
+                          );
+                        },
+                        style:
+                            OutlinedButton
+                                .styleFrom(
+                          foregroundColor:
+                              Colors.red,
+                          side:
+                              const BorderSide(
+                            color: Colors.red,
+                          ),
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            vertical: 11,
+                          ),
+                        ),
+                        child:
+                            const Text(
+                          'Not Approve',
+                        ),
                       ),
                     ),
+
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child:
+                          ElevatedButton(
+                        onPressed: () {
+                          _approveRequest(
+                            request,
+                          );
+                        },
+                        style:
+                            ElevatedButton
+                                .styleFrom(
+                          backgroundColor:
+                              Colors.green,
+                          foregroundColor:
+                              Colors.white,
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            vertical: 11,
+                          ),
+                        ),
+                        child:
+                            const Text(
+                          'Approve',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              if (status.toLowerCase() !=
+                  'pending') ...[
+                const SizedBox(height: 12),
+
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.all(10),
+                  decoration:
+                      BoxDecoration(
+                    color: statusColor
+                        .withOpacity(0.06),
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
                   ),
-                  child: const Text(
-                    'Not Approve',
+                  child: Text(
+                    'Tap to view complete request details',
                     style: TextStyle(
+                      color:
+                          Colors.grey.shade700,
                       fontSize: 12,
-                      fontWeight:
-                          FontWeight.w700,
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _smallInfo(
+  Widget _compactInfo(
     IconData icon,
-    String title,
-    String value, {
-    Color? valueColor,
-  }) {
+    String text,
+  ) {
     return Row(
       children: [
         Icon(
           icon,
-          size: 16,
-          color: const Color(0xFF7A8190),
+          size: 17,
+          color: Colors.grey.shade600,
         ),
-
-        const SizedBox(width: 6),
-
+        const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Color(0xFF8B919D),
-                  fontWeight:
-                      FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                maxLines: 1,
-                overflow:
-                    TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      valueColor ??
-                      const Color(
-                        0xFF353B48,
-                      ),
-                  fontWeight:
-                      FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // SUMMARY
-  // ============================================================
-
-  Widget _summaryCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3157D5),
-        borderRadius:
-            BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Asset Requests',
+          child: Text(
+            text,
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          Text(
-            '${requests.length} total request${requests.length == 1 ? '' : 's'}',
-            style: const TextStyle(
-              color: Colors.white70,
+              color: Colors.grey.shade700,
               fontSize: 13,
             ),
-          ),
-
-          const SizedBox(height: 18),
-
-          Row(
-            children: [
-              Expanded(
-                child: _summaryItem(
-                  'Pending',
-                  pendingCount,
-                  Icons.access_time_rounded,
-                ),
-              ),
-
-              Expanded(
-                child: _summaryItem(
-                  'Approved',
-                  approvedCount,
-                  Icons.check_circle_outline,
-                ),
-              ),
-
-              Expanded(
-                child: _summaryItem(
-                  'Not Approved',
-                  rejectedCount,
-                  Icons.cancel_outlined,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryItem(
-    String title,
-    int count,
-    IconData icon,
-  ) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: Colors.white,
-          size: 21,
-        ),
-
-        const SizedBox(height: 6),
-
-        Text(
-          count.toString(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-
-        const SizedBox(height: 2),
-
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -1903,152 +1511,51 @@ class _AssetManagerRequestsPageState
   }
 
   // ============================================================
-  // FILTER BAR
+  // ERROR VIEW
   // ============================================================
 
-  Widget _filterBar() {
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection:
-            Axis.horizontal,
-        itemCount: filters.length,
-        separatorBuilder: (_, __) =>
-            const SizedBox(width: 8),
-        itemBuilder:
-            (context, index) {
-          final filter =
-              filters[index];
-
-          final selected =
-              selectedFilter == filter;
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedFilter = filter;
-              });
-            },
-            child: Container(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(
-                        0xFF3157D5,
-                      )
-                    : Colors.white,
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-                border: Border.all(
-                  color: selected
-                      ? const Color(
-                          0xFF3157D5,
-                        )
-                      : const Color(
-                          0xFFE2E5ED,
-                        ),
-                ),
-              ),
-              child: Text(
-                filter,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight:
-                      FontWeight.w700,
-                  color: selected
-                      ? Colors.white
-                      : const Color(
-                          0xFF626A79,
-                        ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // EMPTY STATE
-  // ============================================================
-
-  Widget _emptyState() {
-    String title;
-    String subtitle;
-
-    if (selectedFilter == 'All') {
-      title = 'No requests found';
-      subtitle =
-          'Employee asset requests will appear here when they are submitted.';
-    } else {
-      title =
-          'No $selectedFilter requests';
-      subtitle =
-          'There are currently no requests with this status.';
-    }
-
+  Widget _errorView() {
     return Center(
       child: Padding(
         padding:
-            const EdgeInsets.symmetric(
-          horizontal: 30,
-          vertical: 55,
-        ),
+            const EdgeInsets.all(24),
         child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
-            Container(
-              width: 82,
-              height: 82,
-              decoration: BoxDecoration(
-                color:
-                    const Color(0xFFEFF2FA),
-                borderRadius:
-                    BorderRadius.circular(
-                  24,
-                ),
-              ),
-              child: const Icon(
-                Icons.inbox_outlined,
-                size: 40,
-                color:
-                    Color(0xFF3157D5),
-              ),
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 60,
+              color: Colors.grey.shade400,
             ),
-
-            const SizedBox(height: 18),
-
-            Text(
-              title,
-              textAlign:
-                  TextAlign.center,
-              style: const TextStyle(
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to load requests',
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight:
-                    FontWeight.w800,
-                color:
-                    Color(0xFF172033),
+                    FontWeight.bold,
               ),
             ),
-
-            const SizedBox(height: 7),
-
+            const SizedBox(height: 8),
             Text(
-              subtitle,
-              textAlign:
-                  TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color:
-                    Color(0xFF7A8190),
+              errorMessage ??
+                  'Something went wrong.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                _loadRequests();
+              },
+              icon: const Icon(
+                Icons.refresh,
+              ),
+              label: const Text(
+                'Try Again',
               ),
             ),
           ],
@@ -2058,101 +1565,40 @@ class _AssetManagerRequestsPageState
   }
 
   // ============================================================
-  // ERROR STATE
+  // EMPTY VIEW
   // ============================================================
 
-  Widget _errorState() {
+  Widget _emptyView() {
     return Center(
       child: Padding(
         padding:
-            const EdgeInsets.all(28),
+            const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
           children: [
-            Container(
-              width: 75,
-              height: 75,
-              decoration: BoxDecoration(
-                color:
-                    const Color(0xFFFFEEEE),
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-              ),
-              child: const Icon(
-                Icons.cloud_off_outlined,
-                size: 38,
-                color:
-                    Color(0xFFD93025),
-              ),
+            Icon(
+              Icons.inbox_outlined,
+              size: 70,
+              color: Colors.grey.shade300,
             ),
-
-            const SizedBox(height: 18),
-
+            const SizedBox(height: 16),
             const Text(
-              'Unable to load requests',
-              textAlign:
-                  TextAlign.center,
+              'No requests found',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight:
-                    FontWeight.w800,
-                color:
-                    Color(0xFF172033),
+                    FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 8),
-
             Text(
-              errorMessage ??
-                  'Something went wrong.',
-              textAlign:
-                  TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color:
-                    Color(0xFF737A88),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton.icon(
-              onPressed:
-                  _loadRequests,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label:
-                  const Text(
-                'Try Again',
-              ),
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(
-                  0xFF3157D5,
-                ),
-                foregroundColor:
-                    Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets
-                        .symmetric(
-                  horizontal: 20,
-                  vertical: 13,
-                ),
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    13,
-                  ),
-                ),
+              selectedFilter == 'All'
+                  ? 'No employee requests have been submitted yet.'
+                  : 'No $selectedFilter requests found.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
               ),
             ),
           ],
@@ -2167,40 +1613,32 @@ class _AssetManagerRequestsPageState
 
   @override
   Widget build(BuildContext context) {
+    final displayedRequests =
+        filteredRequests;
+
     return Scaffold(
       backgroundColor:
-          const Color(0xFFF6F8FC),
+          const Color(0xFFF7F8FC),
 
       appBar: AppBar(
-        backgroundColor:
-            const Color(0xFFF6F8FC),
+        backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 0,
-
         title: const Text(
-          'Asset Requests',
+          'Employee Requests',
           style: TextStyle(
-            color:
-                Color(0xFF172033),
-            fontSize: 20,
-            fontWeight:
-                FontWeight.w800,
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
           ),
         ),
-
-        iconTheme:
-            const IconThemeData(
-          color:
-              Color(0xFF172033),
-        ),
-
         actions: [
           IconButton(
-            tooltip: 'Refresh',
-            onPressed:
-                isRefreshing
-                    ? null
-                    : _refreshRequests,
+            onPressed: isRefreshing
+                ? null
+                : () {
+                    _loadRequests(
+                      showRefreshLoader: true,
+                    );
+                  },
             icon: isRefreshing
                 ? const SizedBox(
                     width: 20,
@@ -2211,76 +1649,167 @@ class _AssetManagerRequestsPageState
                     ),
                   )
                 : const Icon(
-                    Icons.refresh_rounded,
+                    Icons.refresh,
+                    color: Colors.black87,
                   ),
           ),
+          const SizedBox(width: 6),
         ],
       ),
 
-      body: RefreshIndicator(
-        onRefresh:
-            _refreshRequests,
-        color:
-            const Color(0xFF3157D5),
-
-        child: isLoading
-            ? const Center(
-                child:
-                    CircularProgressIndicator(
-                  color:
-                      Color(0xFF3157D5),
-                ),
-              )
-            : errorMessage != null
-                ? ListView(
-                    physics:
-                        const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height:
-                            MediaQuery.of(
-                              context,
-                            ).size.height *
-                            0.65,
-                        child:
-                            _errorState(),
-                      ),
-                    ],
-                  )
-                : ListView(
+      body: isLoading
+          ? const Center(
+              child:
+                  CircularProgressIndicator(),
+            )
+          : errorMessage != null
+              ? _errorView()
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    await _loadRequests(
+                      showRefreshLoader: true,
+                    );
+                  },
+                  child: ListView(
                     physics:
                         const AlwaysScrollableScrollPhysics(),
                     padding:
-                        const EdgeInsets
-                            .fromLTRB(
-                      16,
-                      4,
-                      16,
-                      30,
-                    ),
+                        const EdgeInsets.all(16),
                     children: [
-                      _summaryCard(),
-
-                      const SizedBox(
-                        height: 20,
+                      // Summary
+                      Row(
+                        children: [
+                          _summaryCard(
+                            title: 'Pending',
+                            count: pendingCount,
+                            icon:
+                                Icons.pending_actions,
+                            color:
+                                Colors.orange,
+                          ),
+                          const SizedBox(width: 10),
+                          _summaryCard(
+                            title: 'Approved',
+                            count: approvedCount,
+                            icon:
+                                Icons.check_circle,
+                            color:
+                                Colors.green,
+                          ),
+                          const SizedBox(width: 10),
+                          _summaryCard(
+                            title: 'Not Approved',
+                            count: rejectedCount,
+                            icon:
+                                Icons.cancel,
+                            color:
+                                Colors.red,
+                          ),
+                        ],
                       ),
 
-                      _filterBar(),
+                      const SizedBox(height: 20),
 
-                      const SizedBox(
-                        height: 18,
+                      // Filters
+                      SizedBox(
+                        height: 42,
+                        child: ListView.separated(
+                          scrollDirection:
+                              Axis.horizontal,
+                          itemCount:
+                              filters.length,
+                          separatorBuilder:
+                              (_, __) =>
+                                  const SizedBox(
+                            width: 8,
+                          ),
+                          itemBuilder:
+                              (context, index) {
+                            final filter =
+                                filters[index];
+
+                            final isSelected =
+                                selectedFilter ==
+                                    filter;
+
+                            return ChoiceChip(
+                              label:
+                                  Text(filter),
+                              selected:
+                                  isSelected,
+                              onSelected: (_) {
+                                setState(() {
+                                  selectedFilter =
+                                      filter;
+                                });
+                              },
+                              selectedColor:
+                                  const Color(
+                                0xFF3B5BDB,
+                              ),
+                              labelStyle:
+                                  TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors
+                                        .black87,
+                                fontWeight:
+                                    FontWeight.w600,
+                              ),
+                              backgroundColor:
+                                  Colors.white,
+                              side: BorderSide(
+                                color: Colors
+                                    .grey.shade200,
+                              ),
+                            );
+                          },
+                        ),
                       ),
 
-                      if (filteredRequests
-                          .isEmpty)
-                        _emptyState()
+                      const SizedBox(height: 20),
+
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Requests',
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${displayedRequests.length} found',
+                            style: TextStyle(
+                              color: Colors
+                                  .grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      if (displayedRequests.isEmpty)
+                        SizedBox(
+                          height:
+                              MediaQuery.of(context)
+                                      .size
+                                      .height *
+                                  0.45,
+                          child: _emptyView(),
+                        )
                       else
-                        ...filteredRequests.map(
+                        ...displayedRequests.map(
                           _requestCard,
                         ),
                     ],
                   ),
-      ),
+                ),
     );
   }
 }
