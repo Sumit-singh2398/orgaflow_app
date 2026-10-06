@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'employee_my_assets_page.dart';
 import 'employee_assets_page.dart';
@@ -15,15 +14,26 @@ const Color employeeGreyColor = Color(0xFF6B7280);
 const Color employeeBackgroundColor = Color(0xFFF6F8FC);
 
 // ============================================================
+// ASSETS
+// ============================================================
+
+const String employeeLogoAsset = 'assets/images/orgaflow_logo.png';
+
+// Header logo size (increase this if you want it even bigger).
+const double employeeLogoSize = 64;
+
+// ============================================================
 // EMPLOYEE DASHBOARD
 // ============================================================
 
 class EmployeeDashboard extends StatefulWidget {
+  final bool isNewUser;
   final Map<String, dynamic>? userData;
 
   const EmployeeDashboard({
     super.key,
-    this.userData, required bool isNewUser,
+    required this.isNewUser,
+    this.userData,
   });
 
   @override
@@ -32,6 +42,14 @@ class EmployeeDashboard extends StatefulWidget {
 
 class _EmployeeDashboardState extends State<EmployeeDashboard> {
   int _currentIndex = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Preload the logo so the header renders instantly.
+    precacheImage(const AssetImage(employeeLogoAsset), context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,38 +136,58 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   }
 
   // ============================================================
+  // LOGO
+  // ============================================================
+
+  Widget _buildLogo(String name) {
+    final String firstLetter = name.isNotEmpty ? name[0].toUpperCase() : 'E';
+
+    // No inner padding / card: the logo fills the whole box so it
+    // appears as large as possible.
+    return SizedBox(
+      height: employeeLogoSize,
+      width: employeeLogoSize,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.asset(
+          employeeLogoAsset,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          // Fallback: first letter of the user's name if the asset fails.
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('LOGO LOAD ERROR: $error');
+
+            return Container(
+              color: employeePrimaryColor,
+              alignment: Alignment.center,
+              child: Text(
+                firstLetter,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // HEADER
   // ============================================================
 
   Widget _buildHeader(String name) {
-    final String firstLetter =
-        name.isNotEmpty ? name[0].toUpperCase() : 'E';
-
     return Row(
       children: [
-        Container(
-          height: 48,
-          width: 48,
-          decoration: BoxDecoration(
-            color: employeePrimaryColor,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Center(
-            child: Text(
-              firstLetter,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 19,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ),
+        _buildLogo(name),
         const SizedBox(width: 12),
-        Expanded(
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'Orgaflow',
                 style: TextStyle(
@@ -194,7 +232,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -317,7 +355,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.035),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 18,
             offset: const Offset(0, 7),
           ),
@@ -467,7 +505,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.025),
+                color: Colors.black.withValues(alpha: 0.025),
                 blurRadius: 14,
                 offset: const Offset(0, 5),
               ),
@@ -696,7 +734,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
