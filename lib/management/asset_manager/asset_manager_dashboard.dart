@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'asset_manager_assets_page.dart' as assets;
@@ -26,7 +25,22 @@ class AssetManagerDashboard extends StatefulWidget {
 
 class _AssetManagerDashboardState
     extends State<AssetManagerDashboard> {
+  // ============================================================
+  // COLORS
+  // ============================================================
+
+  static const Color primaryColor = Color(0xFF3157D5);
+  static const Color darkColor = Color(0xFF172033);
+  static const Color textGrey = Color(0xFF6B7280);
+  static const Color backgroundColor = Color(0xFFF5F7FB);
+  static const Color lightBlue = Color(0xFFEAF0FF);
+  static const Color borderColor = Color(0xFFE8EBF2);
+
   int selectedIndex = 0;
+
+  // ============================================================
+  // PAGE TITLES
+  // ============================================================
 
   final List<String> titles = [
     'Dashboard',
@@ -41,41 +55,78 @@ class _AssetManagerDashboardState
     'Profile',
   ];
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
+      backgroundColor: backgroundColor,
+
+      // ========================================================
+      // APP BAR
+      // ========================================================
 
       appBar: AppBar(
         backgroundColor: Colors.white,
+        foregroundColor: darkColor,
         elevation: 0,
-        foregroundColor: const Color(0xFF172033),
+        surfaceTintColor: Colors.white,
+
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              tooltip: 'Menu',
+              icon: const Icon(
+                Icons.menu_rounded,
+                size: 25,
+              ),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            );
+          },
+        ),
+
+        titleSpacing: 0,
 
         title: Text(
           titles[selectedIndex],
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            color: darkColor,
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
           ),
         ),
 
         actions: [
           IconButton(
+            tooltip: 'Notifications',
             onPressed: _showNotifications,
             icon: const Icon(
-              Icons.notifications_none,
+              Icons.notifications_none_rounded,
+              size: 25,
             ),
           ),
 
+          const SizedBox(width: 3),
+
           Padding(
-            padding: const EdgeInsets.only(right: 14),
+            padding: const EdgeInsets.only(
+              right: 14,
+            ),
             child: CircleAvatar(
-              backgroundColor: const Color(0xFF3157D5),
+              radius: 19,
+              backgroundColor: primaryColor,
               child: Text(
                 _getInitials(),
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
                   fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -85,7 +136,9 @@ class _AssetManagerDashboardState
 
       drawer: _buildDrawer(),
 
-      body: _buildPage(),
+      body: SafeArea(
+        child: _buildPage(),
+      ),
     );
   }
 
@@ -151,153 +204,314 @@ class _AssetManagerDashboardState
   // ============================================================
 
   Widget _buildDashboard() {
-    final name =
-        widget.userData?['name']?.toString() ??
-        'Asset Manager';
+    final String name =
+        widget.userData?['name']?.toString().trim().isNotEmpty == true
+            ? widget.userData!['name'].toString()
+            : 'Asset Manager';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(18),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
 
-      child: Column(
+        final double horizontalPadding =
+            width >= 1100 ? 32 : 18;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            35,
+          ),
+
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 1250,
+              ),
+
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  // ==================================================
+                  // WELCOME
+                  // ==================================================
+
+                  _buildWelcomeSection(name),
+
+                  const SizedBox(height: 24),
+
+                  // ==================================================
+                  // STATISTICS
+                  // ==================================================
+
+                  _buildStatsSection(width),
+
+                  const SizedBox(height: 30),
+
+                  // ==================================================
+                  // QUICK ACTIONS HEADER
+                  // ==================================================
+
+                  _sectionHeader(
+                    title: 'Quick Actions',
+                    subtitle:
+                        'Frequently used asset management tools',
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // ==================================================
+                  // QUICK ACTIONS
+                  // ==================================================
+
+                  _buildQuickActions(width),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // STATISTICS SECTION
+  // ============================================================
+
+  Widget _buildStatsSection(double width) {
+    final List<Map<String, dynamic>> cards = [
+      {
+        'title': 'Total Assets',
+        'value': '356',
+        'icon': Icons.devices_other_rounded,
+      },
+      {
+        'title': 'Assigned',
+        'value': '291',
+        'icon': Icons.assignment_turned_in_rounded,
+      },
+      {
+        'title': 'Available',
+        'value': '65',
+        'icon': Icons.inventory_2_rounded,
+      },
+      {
+        'title': 'Maintenance',
+        'value': '18',
+        'icon': Icons.build_rounded,
+      },
+    ];
+
+    // ------------------------------------------------------------
+    // MOBILE
+    // ------------------------------------------------------------
+
+    if (width < 600) {
+      return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-
         children: [
-          Text(
-            'Welcome, $name 👋',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF172033),
+          Expanded(
+            child: Column(
+              children: [
+                _statCard(
+                  title: cards[0]['title'] as String,
+                  value: cards[0]['value'] as String,
+                  icon: cards[0]['icon'] as IconData,
+                ),
+                const SizedBox(height: 12),
+                _statCard(
+                  title: cards[2]['title'] as String,
+                  value: cards[2]['value'] as String,
+                  icon: cards[2]['icon'] as IconData,
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(width: 12),
 
-          const Text(
-            'Manage and track organization assets.',
-            style: TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 14,
+          Expanded(
+            child: Column(
+              children: [
+                _statCard(
+                  title: cards[1]['title'] as String,
+                  value: cards[1]['value'] as String,
+                  icon: cards[1]['icon'] as IconData,
+                ),
+                const SizedBox(height: 12),
+                _statCard(
+                  title: cards[3]['title'] as String,
+                  value: cards[3]['value'] as String,
+                  icon: cards[3]['icon'] as IconData,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ------------------------------------------------------------
+    // TABLET / DESKTOP
+    // ------------------------------------------------------------
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(
+        cards.length,
+        (index) {
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: index == cards.length - 1
+                    ? 0
+                    : 12,
+              ),
+              child: _statCard(
+                title: cards[index]['title'] as String,
+                value: cards[index]['value'] as String,
+                icon: cards[index]['icon'] as IconData,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // WELCOME SECTION
+  // ============================================================
+
+  Widget _buildWelcomeSection(String name) {
+    return Container(
+      width: double.infinity,
+
+      padding: const EdgeInsets.all(20),
+
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF3157D5),
+            Color(0xFF4770E8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+
+        borderRadius: BorderRadius.circular(22),
+
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.20),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+              mainAxisSize:
+                  MainAxisSize.min,
+
+              children: [
+                const Text(
+                  'Welcome back 👋',
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+
+                const SizedBox(height: 7),
+
+                const Text(
+                  'Manage and track your organization assets easily.',
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(width: 15),
 
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics:
-                const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.4,
+          // ======================================================
+          // LOGO
+          // ======================================================
 
-            children: [
-              _statCard(
-                title: 'Total Assets',
-                value: '356',
-                icon: Icons.devices_other_outlined,
-              ),
+          Container(
+            height: 72,
+            width: 72,
 
-              _statCard(
-                title: 'Assigned',
-                value: '291',
-                icon:
-                    Icons.assignment_turned_in_outlined,
-              ),
+            padding: const EdgeInsets.all(7),
 
-              _statCard(
-                title: 'Available',
-                value: '65',
-                icon:
-                    Icons.inventory_2_outlined,
-              ),
+            decoration: BoxDecoration(
+              color: Colors.white,
 
-              _statCard(
-                title: 'Maintenance',
-                value: '18',
-                icon: Icons.build_outlined,
-              ),
-            ],
-          ),
+              borderRadius:
+                  BorderRadius.circular(17),
 
-          const SizedBox(height: 28),
-
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF172033),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      Colors.black.withOpacity(0.10),
+                  blurRadius: 10,
+                  offset:
+                      const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
 
-          const SizedBox(height: 12),
+            child: Image.asset(
+              'assets/images/orgaflow_logo.png',
+              fit: BoxFit.contain,
 
-          _actionCard(
-            icon: Icons.devices_other_outlined,
-            title: 'All Assets',
-            subtitle:
-                'View and manage organization assets',
-            onTap: () => _changePage(1),
-          ),
-
-          _actionCard(
-            icon:
-                Icons.pending_actions_outlined,
-            title: 'Employee Requests',
-            subtitle:
-                'Review pending asset requests',
-            onTap: () => _changePage(2),
-          ),
-
-          _actionCard(
-            icon:
-                Icons.assignment_ind_outlined,
-            title: 'Assign Asset',
-            subtitle:
-                'Assign an available asset',
-            onTap: () => _changePage(3),
-          ),
-
-          _actionCard(
-            icon: Icons.swap_horiz_outlined,
-            title: 'Transfer Asset',
-            subtitle:
-                'Transfer asset between employees',
-            onTap: () => _changePage(4),
-          ),
-
-          _actionCard(
-            icon: Icons.build_outlined,
-            title: 'Maintenance',
-            subtitle:
-                'Manage asset maintenance',
-            onTap: () => _changePage(5),
-          ),
-
-          _actionCard(
-            icon: Icons.history_outlined,
-            title: 'Asset History',
-            subtitle:
-                'View asset assignment history',
-            onTap: () => _changePage(6),
-          ),
-
-          _actionCard(
-            icon: Icons.bar_chart_outlined,
-            title: 'Reports',
-            subtitle:
-                'View asset reports and analytics',
-            onTap: () => _changePage(7),
-          ),
-
-          _actionCard(
-            icon: Icons.qr_code_scanner,
-            title: 'Scan Asset',
-            subtitle:
-                'Scan QR code or barcode',
-            onTap: () => _changePage(8),
+              errorBuilder:
+                  (context, error, stackTrace) {
+                return const Icon(
+                  Icons.business_rounded,
+                  color: primaryColor,
+                  size: 40,
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -313,21 +527,31 @@ class _AssetManagerDashboardState
     required String value,
     required IconData icon,
   }) {
+    // IMPORTANT:
+    // Fixed height prevents Grid/Column RenderFlex overflow.
     return Container(
+      width: double.infinity,
+      height: 128,
+
       padding: const EdgeInsets.all(15),
 
       decoration: BoxDecoration(
         color: Colors.white,
+
         borderRadius:
-            BorderRadius.circular(16),
+            BorderRadius.circular(18),
+
+        border: Border.all(
+          color: borderColor,
+        ),
 
         boxShadow: [
           BoxShadow(
             color:
-                Colors.black.withOpacity(0.04),
-            blurRadius: 10,
+                Colors.black.withOpacity(0.035),
+            blurRadius: 12,
             offset:
-                const Offset(0, 3),
+                const Offset(0, 4),
           ),
         ],
       ),
@@ -336,37 +560,268 @@ class _AssetManagerDashboardState
         crossAxisAlignment:
             CrossAxisAlignment.start,
 
+        mainAxisAlignment:
+            MainAxisAlignment.start,
+
         children: [
-          Icon(
-            icon,
-            color:
-                const Color(0xFF3157D5),
-            size: 28,
-          ),
+          // ======================================================
+          // ICON
+          // ======================================================
 
-          const Spacer(),
+          Container(
+            height: 40,
+            width: 40,
 
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 25,
-              fontWeight:
-                  FontWeight.bold,
-              color:
-                  Color(0xFF172033),
+            decoration: BoxDecoration(
+              color: lightBlue,
+
+              borderRadius:
+                  BorderRadius.circular(11),
+            ),
+
+            child: Icon(
+              icon,
+              color: primaryColor,
+              size: 21,
             ),
           ),
 
+          const SizedBox(height: 9),
+
+          // ======================================================
+          // VALUE
+          // ======================================================
+
           Text(
-            title,
+            value,
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+
             style: const TextStyle(
-              color:
-                  Color(0xFF6B7280),
-              fontSize: 13,
+              fontSize: 23,
+              height: 1.0,
+              fontWeight: FontWeight.w800,
+              color: darkColor,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          // ======================================================
+          // TITLE
+          // ======================================================
+
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+
+              style: const TextStyle(
+                color: textGrey,
+                fontSize: 12,
+                height: 1.1,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // ============================================================
+  // SECTION HEADER
+  // ============================================================
+
+  Widget _sectionHeader({
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+
+      mainAxisSize:
+          MainAxisSize.min,
+
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow:
+              TextOverflow.ellipsis,
+
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: darkColor,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow:
+              TextOverflow.ellipsis,
+
+          style: const TextStyle(
+            color: textGrey,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // QUICK ACTIONS
+  // ============================================================
+
+  Widget _buildQuickActions(double width) {
+    final List<Map<String, dynamic>> actions = [
+      {
+        'icon': Icons.devices_other_rounded,
+        'title': 'All Assets',
+        'subtitle': 'View and manage assets',
+        'index': 1,
+      },
+      {
+        'icon': Icons.pending_actions_rounded,
+        'title': 'Requests',
+        'subtitle': 'Review asset requests',
+        'index': 2,
+      },
+      {
+        'icon': Icons.assignment_ind_rounded,
+        'title': 'Assign Asset',
+        'subtitle': 'Assign available assets',
+        'index': 3,
+      },
+      {
+        'icon': Icons.swap_horiz_rounded,
+        'title': 'Transfer Asset',
+        'subtitle': 'Transfer between employees',
+        'index': 4,
+      },
+      {
+        'icon': Icons.build_rounded,
+        'title': 'Maintenance',
+        'subtitle': 'Manage asset maintenance',
+        'index': 5,
+      },
+      {
+        'icon': Icons.history_rounded,
+        'title': 'Asset History',
+        'subtitle': 'View assignment history',
+        'index': 6,
+      },
+      {
+        'icon': Icons.bar_chart_rounded,
+        'title': 'Reports',
+        'subtitle': 'View reports and analytics',
+        'index': 7,
+      },
+      {
+        'icon': Icons.qr_code_scanner_rounded,
+        'title': 'Scan Asset',
+        'subtitle': 'Scan QR or barcode',
+        'index': 8,
+      },
+    ];
+
+    // ============================================================
+    // MOBILE
+    // ============================================================
+
+    if (width < 700) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: actions.map(
+          (action) {
+            return Padding(
+              padding:
+                  const EdgeInsets.only(
+                bottom: 10,
+              ),
+
+              child: _actionCard(
+                icon:
+                    action['icon']
+                        as IconData,
+
+                title:
+                    action['title']
+                        as String,
+
+                subtitle:
+                    action['subtitle']
+                        as String,
+
+                onTap: () {
+                  _changePage(
+                    action['index']
+                        as int,
+                  );
+                },
+              ),
+            );
+          },
+        ).toList(),
+      );
+    }
+
+    // ============================================================
+    // TABLET / DESKTOP
+    // ============================================================
+
+    return GridView.builder(
+      shrinkWrap: true,
+
+      physics:
+          const NeverScrollableScrollPhysics(),
+
+      itemCount: actions.length,
+
+      gridDelegate:
+          const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+
+        // Larger height than before.
+        childAspectRatio: 3.4,
+      ),
+
+      itemBuilder: (context, index) {
+        final action =
+            actions[index];
+
+        return _actionCard(
+          icon:
+              action['icon']
+                  as IconData,
+
+          title:
+              action['title']
+                  as String,
+
+          subtitle:
+              action['subtitle']
+                  as String,
+
+          onTap: () {
+            _changePage(
+              action['index']
+                  as int,
+            );
+          },
+        );
+      },
     );
   }
 
@@ -380,58 +835,131 @@ class _AssetManagerDashboardState
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 0,
+    return Material(
       color: Colors.white,
 
-      margin:
-          const EdgeInsets.only(bottom: 10),
+      borderRadius:
+          BorderRadius.circular(16),
 
-      shape: RoundedRectangleBorder(
+      child: InkWell(
         borderRadius:
-            BorderRadius.circular(14),
-      ),
+            BorderRadius.circular(16),
 
-      child: ListTile(
         onTap: onTap,
 
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 5,
-        ),
-
-        leading: CircleAvatar(
-          backgroundColor:
-              const Color(0xFFE8EDFF),
-
-          child: Icon(
-            icon,
-            color:
-                const Color(0xFF3157D5),
+        child: Container(
+          constraints:
+              const BoxConstraints(
+            minHeight: 72,
           ),
-        ),
 
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight:
-                FontWeight.bold,
-            color:
-                Color(0xFF172033),
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 11,
           ),
-        ),
 
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(
-            color:
-                Color(0xFF6B7280),
+          decoration: BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(16),
+
+            border: Border.all(
+              color: borderColor,
+            ),
           ),
-        ),
 
-        trailing: const Icon(
-          Icons.chevron_right,
+          child: Row(
+            children: [
+              // ==================================================
+              // ICON
+              // ==================================================
+
+              Container(
+                height: 44,
+                width: 44,
+
+                decoration:
+                    BoxDecoration(
+                  color: lightBlue,
+
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+                ),
+
+                child: Icon(
+                  icon,
+                  color: primaryColor,
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // ==================================================
+              // TEXT
+              // ==================================================
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+
+                  mainAxisSize:
+                      MainAxisSize.min,
+
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.w700,
+                        color:
+                            darkColor,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 3,
+                    ),
+
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+
+                      style:
+                          const TextStyle(
+                        color:
+                            textGrey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 7),
+
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color:
+                    Color(0xFF9AA1B1),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -443,158 +971,268 @@ class _AssetManagerDashboardState
 
   Widget _buildDrawer() {
     return Drawer(
+      backgroundColor: Colors.white,
+
       child: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.zero,
-
+        child: Column(
           children: [
-            Container(
-              height: 190,
+            _buildDrawerHeader(),
 
-              padding:
-                  const EdgeInsets.fromLTRB(
-                20,
-                25,
-                20,
-                20,
-              ),
-
-              color:
-                  const Color(0xFF3157D5),
-
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+            Expanded(
+              child: ListView(
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
 
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor:
-                        Colors.white,
-
-                    child: Text(
-                      _getInitials(),
-                      style:
-                          const TextStyle(
-                        color:
-                            Color(0xFF3157D5),
-                        fontSize: 18,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
+                  _drawerItem(
+                    Icons.dashboard_rounded,
+                    'Dashboard',
+                    0,
                   ),
 
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'Asset Manager',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                  _drawerItem(
+                    Icons.devices_other_rounded,
+                    'Assets',
+                    1,
                   ),
 
-                  const SizedBox(height: 2),
+                  _drawerItem(
+                    Icons.pending_actions_rounded,
+                    'Requests',
+                    2,
+                  ),
 
-                  const Text(
-                    'Asset & Resource Management',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.white70,
-                      fontSize: 12,
-                    ),
+                  _drawerItem(
+                    Icons.assignment_ind_rounded,
+                    'Assign Asset',
+                    3,
+                  ),
+
+                  _drawerItem(
+                    Icons.swap_horiz_rounded,
+                    'Transfer Asset',
+                    4,
+                  ),
+
+                  _drawerItem(
+                    Icons.build_rounded,
+                    'Maintenance',
+                    5,
+                  ),
+
+                  _drawerItem(
+                    Icons.history_rounded,
+                    'Asset History',
+                    6,
+                  ),
+
+                  _drawerItem(
+                    Icons.bar_chart_rounded,
+                    'Reports',
+                    7,
+                  ),
+
+                  _drawerItem(
+                    Icons.qr_code_scanner_rounded,
+                    'Scan Asset',
+                    8,
+                  ),
+
+                  _drawerItem(
+                    Icons.person_outline_rounded,
+                    'Profile',
+                    9,
                   ),
                 ],
               ),
             ),
 
-            _drawerItem(
-              Icons.dashboard_outlined,
-              'Dashboard',
-              0,
+            const Divider(
+              height: 1,
+              indent: 15,
+              endIndent: 15,
             ),
 
-            _drawerItem(
-              Icons.devices_other_outlined,
-              'Assets',
-              1,
-            ),
+            Padding(
+              padding:
+                  const EdgeInsets.all(10),
 
-            _drawerItem(
-              Icons.pending_actions_outlined,
-              'Requests',
-              2,
-            ),
-
-            _drawerItem(
-              Icons.assignment_ind_outlined,
-              'Assign Asset',
-              3,
-            ),
-
-            _drawerItem(
-              Icons.swap_horiz_outlined,
-              'Transfer Asset',
-              4,
-            ),
-
-            _drawerItem(
-              Icons.build_outlined,
-              'Maintenance',
-              5,
-            ),
-
-            _drawerItem(
-              Icons.history_outlined,
-              'Asset History',
-              6,
-            ),
-
-            _drawerItem(
-              Icons.bar_chart_outlined,
-              'Reports',
-              7,
-            ),
-
-            _drawerItem(
-              Icons.qr_code_scanner,
-              'Scan Asset',
-              8,
-            ),
-
-            _drawerItem(
-              Icons.person_outline,
-              'Profile',
-              9,
-            ),
-
-            const Divider(),
-
-            ListTile(
-              leading: const Icon(
-                Icons.logout,
-                color: Colors.red,
-              ),
-
-              title: const Text(
-                'Logout',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight:
-                      FontWeight.w600,
+              child: ListTile(
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
                 ),
-              ),
 
-              onTap: _logout,
+                leading:
+                    const Icon(
+                  Icons.logout_rounded,
+                  color: Colors.red,
+                ),
+
+                title:
+                    const Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+
+                onTap: _logout,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DRAWER HEADER
+  // ============================================================
+
+  Widget _buildDrawerHeader() {
+    final String name =
+        widget.userData?['name']
+                    ?.toString()
+                    .trim()
+                    .isNotEmpty ==
+                true
+            ? widget.userData!['name']
+                .toString()
+            : 'Asset Manager';
+
+    return Container(
+      width: double.infinity,
+
+      padding:
+          const EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        22,
+      ),
+
+      decoration:
+          const BoxDecoration(
+        color: primaryColor,
+
+        borderRadius:
+            BorderRadius.only(
+          bottomLeft:
+              Radius.circular(24),
+          bottomRight:
+              Radius.circular(24),
+        ),
+      ),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          // ==================================================
+          // BIG LOGO
+          // ==================================================
+
+          Container(
+            height: 86,
+            width: 86,
+
+            padding:
+                const EdgeInsets.all(8),
+
+            decoration:
+                BoxDecoration(
+              color: Colors.white,
+
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
+
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      Colors.black.withOpacity(0.12),
+                  blurRadius: 12,
+                  offset:
+                      const Offset(0, 5),
+                ),
+              ],
+            ),
+
+            child: Image.asset(
+              'assets/images/orgaflow_logo.png',
+
+              fit: BoxFit.contain,
+
+              errorBuilder:
+                  (context, error, stackTrace) {
+                return const Icon(
+                  Icons.business_rounded,
+                  color: primaryColor,
+                  size: 50,
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ==================================================
+          // USER NAME
+          // ==================================================
+
+          Text(
+            name,
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          const Text(
+            'Asset Manager',
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+
+          const SizedBox(height: 2),
+
+          const Text(
+            'OrgaFlow Asset Management',
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -608,44 +1246,75 @@ class _AssetManagerDashboardState
     String title,
     int index,
   ) {
-    final selected =
+    final bool selected =
         selectedIndex == index;
 
-    return ListTile(
-      selected: selected,
-
-      selectedTileColor:
-          const Color(0xFFE8EDFF),
-
-      leading: Icon(
-        icon,
-
-        color: selected
-            ? const Color(0xFF3157D5)
-            : Colors.grey.shade700,
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        bottom: 3,
       ),
 
-      title: Text(
-        title,
+      child: ListTile(
+        dense: true,
 
-        style: TextStyle(
-          fontWeight: selected
-              ? FontWeight.bold
-              : FontWeight.normal,
+        shape:
+            RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(
+            12,
+          ),
+        ),
+
+        selected: selected,
+
+        selectedTileColor:
+            lightBlue,
+
+        leading: Icon(
+          icon,
+          size: 21,
 
           color: selected
-              ? const Color(0xFF3157D5)
-              : Colors.black87,
+              ? primaryColor
+              : Colors.grey.shade700,
         ),
+
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow:
+              TextOverflow.ellipsis,
+
+          style: TextStyle(
+            fontSize: 14,
+
+            fontWeight: selected
+                ? FontWeight.w700
+                : FontWeight.w500,
+
+            color: selected
+                ? primaryColor
+                : darkColor,
+          ),
+        ),
+
+        trailing: selected
+            ? const Icon(
+                Icons.chevron_right_rounded,
+                color: primaryColor,
+                size: 20,
+              )
+            : null,
+
+        onTap: () {
+          setState(() {
+            selectedIndex = index;
+          });
+
+          Navigator.pop(context);
+        },
       ),
-
-      onTap: () {
-        setState(() {
-          selectedIndex = index;
-        });
-
-        Navigator.pop(context);
-      },
     );
   }
 
@@ -654,7 +1323,7 @@ class _AssetManagerDashboardState
   // ============================================================
 
   String _getInitials() {
-    final name =
+    final String? name =
         widget.userData?['name']
             ?.toString();
 
@@ -663,7 +1332,7 @@ class _AssetManagerDashboardState
       return 'AM';
     }
 
-    final parts =
+    final List<String> parts =
         name.trim().split(
           RegExp(r'\s+'),
         );
@@ -697,14 +1366,15 @@ class _AssetManagerDashboardState
     showModalBottomSheet(
       context: context,
 
-      backgroundColor:
-          Colors.white,
+      backgroundColor: Colors.white,
+
+      isScrollControlled: true,
 
       shape:
           const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(
-          top: Radius.circular(22),
+          top: Radius.circular(24),
         ),
       ),
 
@@ -712,7 +1382,12 @@ class _AssetManagerDashboardState
         return SafeArea(
           child: Padding(
             padding:
-                const EdgeInsets.all(20),
+                const EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              24,
+            ),
 
             child: Column(
               mainAxisSize:
@@ -722,67 +1397,188 @@ class _AssetManagerDashboardState
                   CrossAxisAlignment.start,
 
               children: [
-                const Text(
-                  'Notifications',
-                  style:
-                      TextStyle(
-                    fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
+                // ==================================================
+                // HEADER
+                // ==================================================
+
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Notifications',
+                        maxLines: 1,
+                        overflow:
+                            TextOverflow.ellipsis,
+
+                        style:
+                            TextStyle(
+                          fontSize: 21,
+                          fontWeight:
+                              FontWeight.w800,
+                          color:
+                              darkColor,
+                        ),
+                      ),
+                    ),
+
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pop(
+                          context,
+                        );
+                      },
+
+                      icon:
+                          const Icon(
+                        Icons.close_rounded,
+                      ),
+                    ),
+                  ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
-                ListTile(
-                  leading:
-                      const CircleAvatar(
-                    backgroundColor:
-                        Color(0xFFE8EDFF),
-                    child: Icon(
-                      Icons
-                          .pending_actions,
-                      color:
-                          Color(0xFF3157D5),
-                    ),
-                  ),
+                // ==================================================
+                // NOTIFICATION 1
+                // ==================================================
 
-                  title: const Text(
-                    'New asset request',
-                  ),
-
+                _notificationItem(
+                  icon:
+                      Icons.pending_actions_rounded,
+                  iconColor:
+                      primaryColor,
+                  iconBackground:
+                      lightBlue,
+                  title:
+                      'New asset request',
                   subtitle:
-                      const Text(
-                    'An employee has requested an asset.',
-                  ),
+                      'An employee has requested an asset.',
                 ),
 
-                ListTile(
-                  leading:
-                      const CircleAvatar(
-                    backgroundColor:
-                        Color(0xFFFFF4E5),
-                    child: Icon(
-                      Icons.build_outlined,
-                      color:
-                          Colors.orange,
-                    ),
-                  ),
+                // ==================================================
+                // NOTIFICATION 2
+                // ==================================================
 
-                  title: const Text(
-                    'Maintenance required',
-                  ),
-
+                _notificationItem(
+                  icon:
+                      Icons.build_rounded,
+                  iconColor:
+                      Colors.orange,
+                  iconBackground:
+                      const Color(0xFFFFF4E5),
+                  title:
+                      'Maintenance required',
                   subtitle:
-                      const Text(
-                    'Some assets require maintenance.',
-                  ),
+                      'Some assets require maintenance.',
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  // ============================================================
+  // NOTIFICATION ITEM
+  // ============================================================
+
+  Widget _notificationItem({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBackground,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      margin:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+
+      padding:
+          const EdgeInsets.all(12),
+
+      decoration:
+          BoxDecoration(
+        color:
+            const Color(0xFFF8F9FC),
+
+        borderRadius:
+            BorderRadius.circular(14),
+      ),
+
+      child: Row(
+        children: [
+          Container(
+            height: 44,
+            width: 44,
+
+            decoration:
+                BoxDecoration(
+              color:
+                  iconBackground,
+
+              borderRadius:
+                  BorderRadius.circular(
+                12,
+              ),
+            ),
+
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 22,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+              mainAxisSize:
+                  MainAxisSize.min,
+
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.w700,
+                    color:
+                        darkColor,
+                  ),
+                ),
+
+                const SizedBox(height: 3),
+
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style:
+                      const TextStyle(
+                    color:
+                        textGrey,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
