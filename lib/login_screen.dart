@@ -43,6 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
   static const String tokenStorageKey = 'access_token';
 
   // ============================================================
+  // ASSETS
+  // ============================================================
+
+  static const String logoAsset = 'assets/images/orgaflow_logo.png';
+
+  // ============================================================
   // COLORS
   // ============================================================
 
@@ -78,6 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _initializeGoogle();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Preload the logo so it appears instantly (no pop-in).
+    precacheImage(const AssetImage(logoAsset), context);
   }
 
   Future<void> _initializeGoogle() async {
@@ -652,6 +666,51 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
+  // LOGO
+  // ============================================================
+
+  Widget _buildLogo() {
+    return Container(
+      width: 90,
+      height: 90,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.asset(
+          logoAsset,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+          // Fallback if the asset is missing / not declared in pubspec.yaml
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('LOGO LOAD ERROR: $error');
+
+            return Container(
+              color: primaryColor,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.business_center_rounded,
+                size: 42,
+                color: Colors.white,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // PORTAL TOGGLE
   // ============================================================
 
@@ -852,22 +911,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 10),
 
                   // ------------------------------------------------
-                  // LOGO
+                  //LOGO (assets/images/orgaflow_logo.png)
                   // ------------------------------------------------
 
-                  Container(
-                    width: 78,
-                    height: 78,
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: const Icon(
-                      Icons.business_center_rounded,
-                      size: 42,
-                      color: Colors.white,
-                    ),
-                  ),
+                  _buildLogo(),
 
                   const SizedBox(height: 18),
 
