@@ -900,7 +900,6 @@ class _AssetDetailsDialog extends StatelessWidget {
 
   static const Color primaryColor = Color(0xFF3157D5);
   static const Color darkColor = Color(0xFF171A22);
-  static const Color greyColor = Color(0xFF6B7280);
   static const Color borderColor = Color(0xFFE5E7EB);
 
   String _value(
