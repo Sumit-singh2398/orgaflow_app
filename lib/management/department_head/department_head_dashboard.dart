@@ -1,4 +1,12 @@
+// ignore: unused_element
 import 'package:flutter/material.dart';
+import 'department_employees_page.dart';
+import 'department_assets_page.dart';
+import 'department_requests_page.dart';
+import 'department_maintenance_page.dart';
+import 'department_reports_page.dart';
+import 'department_notifications_page.dart';
+import 'department_head_profile_page.dart';
 
 class DepartmentHeadDashboard extends StatefulWidget {
   const DepartmentHeadDashboard({super.key});
@@ -12,6 +20,9 @@ class _DepartmentHeadDashboardState
     extends State<DepartmentHeadDashboard> {
   int _selectedIndex = 0;
 
+  final Color primaryColor = const Color(0xFF3B5BDB);
+  final Color backgroundColor = const Color(0xFFF4F6FA);
+
   final List<String> _titles = [
     'Department Head Dashboard',
     'Department Employees',
@@ -24,427 +35,442 @@ class _DepartmentHeadDashboardState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
+      backgroundColor: backgroundColor,
+      appBar: _buildAppBar(),
+      drawer: _buildDrawer(),
+      body: _buildBody(),
+    );
+  }
 
-      // =====================================================
-      // APP BAR
-      // =====================================================
+  // =========================================================
+  // APP BAR
+  // =========================================================
 
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F2937),
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF1F2937),
+      centerTitle: false,
 
-        title: Text(
-          _titles[_selectedIndex],
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+      title: Text(
+        _titles[_selectedIndex],
+        style: const TextStyle(
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+
+      actions: [
+        IconButton(
+          tooltip: 'Notifications',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const DepartmentNotificationsPage(),
+              ),
+            );
+          },
+          icon: const Icon(
+            Icons.notifications_none_rounded,
           ),
         ),
 
-        actions: [
-          IconButton(
-            onPressed: () {
-              _showMessage('Notifications');
-            },
-            icon: const Icon(
-              Icons.notifications_none,
-            ),
-          ),
+        const SizedBox(width: 4),
 
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
+        InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const DepartmentHeadProfilePage(),
+              ),
+            );
+          },
+          child: const Padding(
+            padding: EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 19,
-              backgroundColor: const Color(0xFF3B5BDB),
-              child: const Text(
+              backgroundColor: Color(0xFF3B5BDB),
+              child: Text(
                 'DH',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
-        ],
-      ),
-
-      // =====================================================
-      // DRAWER
-      // =====================================================
-
-      drawer: Drawer(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                55,
-                20,
-                25,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF3B5BDB),
-              ),
-
-              child: const Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.account_tree_outlined,
-                      color: Color(0xFF3B5BDB),
-                      size: 34,
-                    ),
-                  ),
-
-                  SizedBox(height: 15),
-
-                  Text(
-                    'Department Head',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  SizedBox(height: 4),
-
-                  Text(
-                    'Department Management',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  // Dashboard
-
-                  _drawerItem(
-                    icon: Icons.dashboard_outlined,
-                    title: 'Dashboard',
-                    index: 0,
-                  ),
-
-                  // Employees
-
-                  _drawerItem(
-                    icon: Icons.people_outline,
-                    title: 'Department Employees',
-                    index: 1,
-                  ),
-
-                  // Assets
-
-                  _drawerItem(
-                    icon: Icons.devices_other_outlined,
-                    title: 'Department Assets',
-                    index: 2,
-                  ),
-
-                  // Requests
-
-                  _drawerItem(
-                    icon: Icons.assignment_outlined,
-                    title: 'Requests',
-                    index: 3,
-                  ),
-
-                  // Maintenance
-
-                  _drawerItem(
-                    icon: Icons.build_outlined,
-                    title: 'Maintenance',
-                    index: 4,
-                  ),
-
-                  // Reports
-
-                  _drawerItem(
-                    icon: Icons.bar_chart_outlined,
-                    title: 'Department Reports',
-                    index: 5,
-                  ),
-
-                  const Divider(),
-
-                  // Notifications
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.notifications_none,
-                    ),
-                    title: const Text(
-                      'Notifications',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      _showMessage(
-                        'Notifications',
-                      );
-                    },
-                  ),
-
-                  // Profile
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.person_outline,
-                    ),
-                    title: const Text(
-                      'Profile',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      _showMessage(
-                        'Profile',
-                      );
-                    },
-                  ),
-
-                  // Logout
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.logout,
-                      color: Colors.red,
-                    ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(
-                        color: Colors.red,
-                      ),
-                    ),
-                    onTap: () {
-                      _logout();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
-      ),
-
-      // =====================================================
-      // BODY
-      // =====================================================
-
-      body: _buildBody(),
+      ],
     );
   }
 
-  // =====================================================
-  // BODY SWITCH
-  // =====================================================
+  // =========================================================
+  // DRAWER
+  // =========================================================
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(
+              22,
+              55,
+              20,
+              25,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF3B5BDB),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 31,
+                  backgroundColor: Colors.white,
+                  child: Icon(
+                    Icons.account_tree_rounded,
+                    color: Color(0xFF3B5BDB),
+                    size: 34,
+                  ),
+                ),
+
+                SizedBox(height: 15),
+
+                Text(
+                  'Department Head',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(height: 5),
+
+                Text(
+                  'Department Management',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+              ),
+              children: [
+                _drawerItem(
+                  icon: Icons.dashboard_outlined,
+                  title: 'Dashboard',
+                  index: 0,
+                ),
+
+                _drawerItem(
+                  icon: Icons.people_outline_rounded,
+                  title: 'Department Employees',
+                  index: 1,
+                ),
+
+                _drawerItem(
+                  icon: Icons.devices_other_outlined,
+                  title: 'Department Assets',
+                  index: 2,
+                ),
+
+                _drawerItem(
+                  icon: Icons.assignment_outlined,
+                  title: 'Requests',
+                  index: 3,
+                ),
+
+                _drawerItem(
+                  icon: Icons.build_outlined,
+                  title: 'Maintenance',
+                  index: 4,
+                ),
+
+                _drawerItem(
+                  icon: Icons.bar_chart_outlined,
+                  title: 'Department Reports',
+                  index: 5,
+                ),
+
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Divider(),
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.notifications_none_rounded,
+                  ),
+                  title: const Text('Notifications'),
+                  onTap: () {
+                    Navigator.pop(context);
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const DepartmentNotificationsPage(),
+                      ),
+                    );
+                  },
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.person_outline_rounded,
+                  ),
+                  title: const Text('Profile'),
+                  onTap: () {
+                    Navigator.pop(context);
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const DepartmentHeadProfilePage(),
+                      ),
+                    );
+                  },
+                ),
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.logout_rounded,
+                    color: Colors.red,
+                  ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Colors.red,
+                    ),
+                  ),
+                  onTap: _logout,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // DRAWER ITEM
+  // =========================================================
+
+  Widget _drawerItem({
+    required IconData icon,
+    required String title,
+    required int index,
+  }) {
+    final bool selected = _selectedIndex == index;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 2,
+      ),
+      child: ListTile(
+        selected: selected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        selectedTileColor: const Color(0xFFE8EDFF),
+
+        leading: Icon(
+          icon,
+          color: selected
+              ? primaryColor
+              : Colors.grey.shade700,
+        ),
+
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight:
+                selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected
+                ? primaryColor
+                : const Color(0xFF374151),
+          ),
+        ),
+
+        trailing: selected
+            ? Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: primaryColor,
+              )
+            : null,
+
+        onTap: () {
+          setState(() {
+            _selectedIndex = index;
+          });
+
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  // =========================================================
+  // BODY
+  // =========================================================
 
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 1:
-        return _employeesPage();
+        return const DepartmentEmployeesPage();
 
       case 2:
-        return _assetsPage();
+        return const DepartmentAssetsPage();
 
       case 3:
-        return _requestsPage();
+        return const DepartmentRequestsPage();
 
       case 4:
-        return _maintenancePage();
+        return const DepartmentMaintenancePage();
 
       case 5:
-        return _reportsPage();
+        return const DepartmentReportsPage();
 
       default:
         return _dashboardPage();
     }
   }
 
-  // =====================================================
+  // =========================================================
   // DASHBOARD
-  // =====================================================
+  // =========================================================
 
   Widget _dashboardPage() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
-
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Welcome, Department Head 👋',
             style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
             ),
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
 
-          const Text(
+          Text(
             'Monitor your department employees, assets and requests.',
             style: TextStyle(
-              color: Colors.grey,
+              color: Colors.grey.shade600,
               fontSize: 14,
             ),
           ),
 
           const SizedBox(height: 22),
 
-          // =================================================
-          // DEPARTMENT INFO
-          // =================================================
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-                  BorderRadius.circular(15),
-
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset:
-                      const Offset(0, 3),
-                ),
-              ],
-            ),
-
-            child: const Row(
-              children: [
-                CircleAvatar(
-                  radius: 27,
-                  backgroundColor:
-                      Color(0xFFE8EDFF),
-                  child: Icon(
-                    Icons.business_outlined,
-                    color:
-                        Color(0xFF3B5BDB),
-                    size: 28,
-                  ),
-                ),
-
-                SizedBox(width: 15),
-
-                Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Department',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-
-                    SizedBox(height: 3),
-
-                    Text(
-                      'Department Name',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _departmentCard(),
 
           const SizedBox(height: 22),
 
-          // =================================================
-          // STAT CARDS
-          // =================================================
+          _sectionTitle(
+            'Department Overview',
+            'Current department statistics',
+          ),
+
+          const SizedBox(height: 14),
 
           GridView.count(
             crossAxisCount: 2,
-
             shrinkWrap: true,
-
             physics:
                 const NeverScrollableScrollPhysics(),
-
             crossAxisSpacing: 12,
-
             mainAxisSpacing: 12,
-
-            childAspectRatio: 1.35,
-
+            childAspectRatio: 1.28,
             children: [
               _statCard(
                 title: 'Employees',
                 value: '42',
-                icon: Icons.people_outline,
+                icon: Icons.people_outline_rounded,
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 1;
+                  });
+                },
               ),
 
               _statCard(
                 title: 'Department Assets',
                 value: '96',
                 icon: Icons.devices_other_outlined,
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 2;
+                  });
+                },
               ),
 
               _statCard(
                 title: 'Pending Requests',
                 value: '8',
-                icon: Icons.pending_actions,
+                icon: Icons.pending_actions_outlined,
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 3;
+                  });
+                },
               ),
 
               _statCard(
                 title: 'Maintenance',
                 value: '5',
                 icon: Icons.build_outlined,
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 4;
+                  });
+                },
               ),
             ],
           ),
 
           const SizedBox(height: 25),
 
-          // =================================================
-          // QUICK ACTIONS
-          // =================================================
-
-          const Text(
+          _sectionTitle(
             'Quick Actions',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
+            'Frequently used department operations',
           ),
 
           const SizedBox(height: 14),
 
           _quickAction(
-            icon: Icons.people_outline,
+            icon: Icons.people_outline_rounded,
             title: 'View Employees',
             subtitle:
-                'View employees in your department',
+                'Manage employees belonging to your department.',
             onTap: () {
               setState(() {
                 _selectedIndex = 1;
@@ -454,9 +480,9 @@ class _DepartmentHeadDashboardState
 
           _quickAction(
             icon: Icons.devices_other_outlined,
-            title: 'View Department Assets',
+            title: 'Department Assets',
             subtitle:
-                'Check assets assigned to your department',
+                'Check assets assigned to your department.',
             onTap: () {
               setState(() {
                 _selectedIndex = 2;
@@ -468,7 +494,7 @@ class _DepartmentHeadDashboardState
             icon: Icons.assignment_outlined,
             title: 'Review Requests',
             subtitle:
-                'Review employee requests',
+                'Review and process employee requests.',
             onTap: () {
               setState(() {
                 _selectedIndex = 3;
@@ -480,7 +506,7 @@ class _DepartmentHeadDashboardState
             icon: Icons.build_outlined,
             title: 'Maintenance',
             subtitle:
-                'Check department maintenance requests',
+                'Monitor assets currently under maintenance.',
             onTap: () {
               setState(() {
                 _selectedIndex = 4;
@@ -492,161 +518,218 @@ class _DepartmentHeadDashboardState
             icon: Icons.bar_chart_outlined,
             title: 'Department Reports',
             subtitle:
-                'View department reports',
+                'View department performance and reports.',
             onTap: () {
               setState(() {
                 _selectedIndex = 5;
               });
             },
           ),
+
+          const SizedBox(height: 20),
+
+          _recentActivity(),
+
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  // =====================================================
-  // EMPLOYEES
-  // =====================================================
+  // =========================================================
+  // DEPARTMENT CARD
+  // =========================================================
 
-  Widget _employeesPage() {
-    return _simplePage(
-      icon: Icons.people_outline,
-      title: 'Department Employees',
-      subtitle:
-          'View employees belonging to your department.',
-      buttonText: 'View Employees',
+  Widget _departmentCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF3B5BDB),
+            Color(0xFF5472E8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.20),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 58,
+            width: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.business_outlined,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          const Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Department',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+
+                SizedBox(height: 4),
+
+                Text(
+                  'Department Name',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(height: 4),
+
+                Text(
+                  'Department Head Portal',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // =====================================================
-  // ASSETS
-  // =====================================================
+  // =========================================================
+  // SECTION TITLE
+  // =========================================================
 
-  Widget _assetsPage() {
-    return _simplePage(
-      icon: Icons.devices_other_outlined,
-      title: 'Department Assets',
-      subtitle:
-          'View assets assigned to your department.',
-      buttonText: 'View Assets',
+  Widget _sectionTitle(
+    String title,
+    String subtitle,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+
+        const SizedBox(height: 3),
+
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 
-  // =====================================================
-  // REQUESTS
-  // =====================================================
+  // =========================================================
+  // STAT CARD
+  // =========================================================
 
-  Widget _requestsPage() {
-    return _simplePage(
-      icon: Icons.assignment_outlined,
-      title: 'Requests',
-      subtitle:
-          'Review requests submitted by department employees.',
-      buttonText: 'View Requests',
-    );
-  }
-
-  // =====================================================
-  // MAINTENANCE
-  // =====================================================
-
-  Widget _maintenancePage() {
-    return _simplePage(
-      icon: Icons.build_outlined,
-      title: 'Maintenance',
-      subtitle:
-          'Monitor maintenance requests from your department.',
-      buttonText: 'View Maintenance',
-    );
-  }
-
-  // =====================================================
-  // REPORTS
-  // =====================================================
-
-  Widget _reportsPage() {
-    return _simplePage(
-      icon: Icons.bar_chart_outlined,
-      title: 'Department Reports',
-      subtitle:
-          'View employee, asset and request reports for your department.',
-      buttonText: 'Generate Report',
-    );
-  }
-
-  // =====================================================
-  // SIMPLE PAGE
-  // =====================================================
-
-  Widget _simplePage({
-    required IconData icon,
+  Widget _statCard({
     required String title,
-    required String subtitle,
-    required String buttonText,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
   }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE5E7EB),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.035),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 70,
-              color:
-                  const Color(0xFF3B5BDB),
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8EDFF),
+                    borderRadius:
+                        BorderRadius.circular(11),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: primaryColor,
+                    size: 23,
+                  ),
+                ),
+
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 13,
+                  color: Colors.grey.shade400,
+                ),
+              ],
             ),
 
-            const SizedBox(height: 20),
+            const Spacer(),
+
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+
+            const SizedBox(height: 2),
 
             Text(
               title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                _showMessage(buttonText);
-              },
-
-              icon: const Icon(
-                Icons.arrow_forward,
-              ),
-
-              label: Text(buttonText),
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(0xFF3B5BDB),
-                foregroundColor:
-                    Colors.white,
-
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 13,
-                ),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -655,121 +738,9 @@ class _DepartmentHeadDashboardState
     );
   }
 
-  // =====================================================
-  // DRAWER ITEM
-  // =====================================================
-
-  Widget _drawerItem({
-    required IconData icon,
-    required String title,
-    required int index,
-  }) {
-    final bool selected =
-        _selectedIndex == index;
-
-    return ListTile(
-      selected: selected,
-
-      selectedTileColor:
-          const Color(0xFFE8EDFF),
-
-      leading: Icon(
-        icon,
-        color: selected
-            ? const Color(0xFF3B5BDB)
-            : Colors.grey.shade700,
-      ),
-
-      title: Text(
-        title,
-
-        style: TextStyle(
-          fontWeight: selected
-              ? FontWeight.bold
-              : FontWeight.normal,
-
-          color: selected
-              ? const Color(0xFF3B5BDB)
-              : Colors.black87,
-        ),
-      ),
-
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  // =====================================================
-  // STAT CARD
-  // =====================================================
-
-  Widget _statCard({
-    required String title,
-    required String value,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(15),
-
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset:
-                const Offset(0, 3),
-          ),
-        ],
-      ),
-
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
-        children: [
-          Icon(
-            icon,
-            color:
-                const Color(0xFF3B5BDB),
-            size: 28,
-          ),
-
-          const Spacer(),
-
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =====================================================
+  // =========================================================
   // QUICK ACTION
-  // =====================================================
+  // =========================================================
 
   Widget _quickAction({
     required IconData icon,
@@ -779,92 +750,200 @@ class _DepartmentHeadDashboardState
   }) {
     return Card(
       elevation: 0,
-
-      margin:
-          const EdgeInsets.only(bottom: 10),
-
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 5,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: const BorderSide(
+          color: Color(0xFFE5E7EB),
         ),
-
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 6,
+        ),
         leading: CircleAvatar(
+          radius: 23,
           backgroundColor:
               const Color(0xFFE8EDFF),
-
           child: Icon(
             icon,
-            color:
-                const Color(0xFF3B5BDB),
+            color: primaryColor,
           ),
         ),
-
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
-
-        subtitle: Text(subtitle),
-
-        trailing:
-            const Icon(Icons.chevron_right),
-
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 12,
+            ),
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right_rounded,
+        ),
         onTap: onTap,
       ),
     );
   }
 
-  // =====================================================
-  // MESSAGE
-  // =====================================================
+  // =========================================================
+  // RECENT ACTIVITY
+  // =========================================================
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '$message screen will open here.',
+  Widget _recentActivity() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Recent Activity',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          _activityItem(
+            icon: Icons.assignment_outlined,
+            title: 'New asset request',
+            subtitle:
+                'Employee requested a laptop',
+            time: '10 min ago',
+          ),
+
+          _activityItem(
+            icon: Icons.build_outlined,
+            title: 'Maintenance update',
+            subtitle:
+                'Dell Latitude marked for repair',
+            time: '1 hour ago',
+          ),
+
+          _activityItem(
+            icon: Icons.devices_other_outlined,
+            title: 'Asset assigned',
+            subtitle:
+                'Samsung Galaxy assigned to employee',
+            time: '2 hours ago',
+          ),
+        ],
       ),
     );
   }
 
-  // =====================================================
+  Widget _activityItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String time,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8EDFF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: primaryColor,
+              size: 20,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Text(
+            time,
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
   // LOGOUT
-  // =====================================================
+  // =========================================================
 
   void _logout() {
     showDialog(
       context: context,
-
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
             'Logout',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-
           content: const Text(
             'Are you sure you want to logout?',
           ),
-
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
-
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
-
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
 
                 Navigator.pushNamedAndRemoveUntil(
                   context,
@@ -872,18 +951,11 @@ class _DepartmentHeadDashboardState
                   (route) => false,
                 );
               },
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.red,
-                foregroundColor:
-                    Colors.white,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
               ),
-
-              child: const Text(
-                'Logout',
-              ),
+              child: const Text('Logout'),
             ),
           ],
         );
