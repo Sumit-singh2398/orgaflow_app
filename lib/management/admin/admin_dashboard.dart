@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'admin_drawer.dart';
+import 'admin_quick_action.dart';
+import 'admin_section_page.dart';
+import 'admin_stat_card.dart';
+
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
 
@@ -8,9 +13,12 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
+  static const Color primary = Color(0xFF3157D5);
+  static const Color textPrimary = Color(0xFF1F2937);
+
   int _selectedIndex = 0;
 
-  final List<String> _titles = [
+  final List<String> _titles = const [
     'Admin Dashboard',
     'Employees',
     'Assets',
@@ -23,199 +31,111 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
-
-      // ================= APP BAR =================
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F2937),
-
-        title: Text(
-          _titles[_selectedIndex],
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              _showMessage('Notifications');
-            },
-          ),
-
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 19,
-              backgroundColor: const Color(0xFF3B5BDB),
-              child: const Text(
-                'A',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
+      backgroundColor: const Color(0xFFF7F8FC),
+      appBar: _buildAppBar(),
+      drawer: AdminDrawer(
+        selectedIndex: _selectedIndex,
+        onItemSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        onProfileTap: () => _showMessage('Profile'),
+        onLogoutTap: () => _logout(),
       ),
-
-      // ================= DRAWER =================
-      drawer: Drawer(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 55, 20, 25),
-              decoration: const BoxDecoration(
-                color: Color(0xFF3B5BDB),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.admin_panel_settings,
-                      color: Color(0xFF3B5BDB),
-                      size: 35,
-                    ),
-                  ),
-
-                  SizedBox(height: 15),
-
-                  Text(
-                    'Admin',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  SizedBox(height: 4),
-
-                  Text(
-                    'Organization Administrator',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _drawerItem(
-                    icon: Icons.dashboard_outlined,
-                    title: 'Dashboard',
-                    index: 0,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.people_outline,
-                    title: 'Employees',
-                    index: 1,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.devices_other_outlined,
-                    title: 'Assets',
-                    index: 2,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.assignment_outlined,
-                    title: 'Requests',
-                    index: 3,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.build_outlined,
-                    title: 'Maintenance',
-                    index: 4,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.business_outlined,
-                    title: 'Departments',
-                    index: 5,
-                  ),
-
-                  _drawerItem(
-                    icon: Icons.bar_chart_outlined,
-                    title: 'Reports',
-                    index: 6,
-                  ),
-
-                  const Divider(),
-
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: const Text('Profile'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showMessage('Profile');
-                    },
-                  ),
-
-                  ListTile(
-                    leading: const Icon(
-                      Icons.logout,
-                      color: Colors.red,
-                    ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(
-                        color: Colors.red,
-                      ),
-                    ),
-                    onTap: () {
-                      _logout();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      // ================= BODY =================
       body: _buildBody(),
     );
   }
 
-  // ================= BODY SWITCH =================
+  // ================= APP BAR =================
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: textPrimary,
+      title: Text(
+        _titles[_selectedIndex],
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: textPrimary,
+        ),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () => _showMessage('Notifications'),
+          icon: const Icon(Icons.notifications_none_rounded),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(right: 14),
+          child: CircleAvatar(
+            radius: 18,
+            backgroundColor: primary,
+            child: Text(
+              'A',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================= BODY =================
 
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 1:
-        return _employeesPage();
+        return const AdminSectionPage(
+          icon: Icons.people_outline_rounded,
+          title: 'Employees',
+          subtitle: 'Manage employee accounts, roles and details.',
+          buttonText: 'Add Employee',
+        );
 
       case 2:
-        return _assetsPage();
+        return const AdminSectionPage(
+          icon: Icons.devices_other_rounded,
+          title: 'Assets',
+          subtitle: 'Register, assign and track organization assets.',
+          buttonText: 'Add Asset',
+        );
 
       case 3:
-        return _requestsPage();
+        return const AdminSectionPage(
+          icon: Icons.assignment_outlined,
+          title: 'Requests',
+          subtitle: 'Review employee and department requests.',
+          buttonText: 'View Requests',
+        );
 
       case 4:
-        return _maintenancePage();
+        return const AdminSectionPage(
+          icon: Icons.build_circle_outlined,
+          title: 'Maintenance',
+          subtitle: 'Track repair and maintenance activities.',
+          buttonText: 'View Maintenance',
+        );
 
       case 5:
-        return _departmentsPage();
+        return const AdminSectionPage(
+          icon: Icons.business_outlined,
+          title: 'Departments',
+          subtitle: 'Create and manage organization departments.',
+          buttonText: 'Add Department',
+        );
 
       case 6:
-        return _reportsPage();
+        return const AdminSectionPage(
+          icon: Icons.bar_chart_rounded,
+          title: 'Reports',
+          subtitle: 'View organization-wide asset and employee reports.',
+          buttonText: 'Generate Report',
+        );
 
       default:
         return _dashboardPage();
@@ -230,103 +150,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Welcome, Admin 👋',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          const Text(
-            'Manage your organization from one place.',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
-          ),
-
-          const SizedBox(height: 22),
-
-          // ================= STAT CARDS =================
-
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.35,
-            children: [
-              _statCard(
-                title: 'Employees',
-                value: '128',
-                icon: Icons.people,
-              ),
-
-              _statCard(
-                title: 'Total Assets',
-                value: '356',
-                icon: Icons.devices,
-              ),
-
-              _statCard(
-                title: 'Assigned Assets',
-                value: '291',
-                icon: Icons.assignment_turned_in,
-              ),
-
-              _statCard(
-                title: 'Pending Requests',
-                value: '18',
-                icon: Icons.pending_actions,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 25),
-
+          _buildWelcomeCard(),
+          const SizedBox(height: 20),
+          _buildStatCards(),
+          const SizedBox(height: 24),
           const Text(
             'Quick Actions',
             style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
             ),
           ),
-
-          const SizedBox(height: 14),
-
-          _quickAction(
-            icon: Icons.person_add_alt_1,
+          const SizedBox(height: 12),
+          AdminQuickAction(
+            icon: Icons.person_add_alt_1_rounded,
             title: 'Add Employee',
             subtitle: 'Create a new employee account',
-            onTap: () {
-              _showMessage('Add Employee');
-            },
+            onTap: () => _showMessage('Add Employee'),
           ),
-
-          _quickAction(
+          AdminQuickAction(
             icon: Icons.add_box_outlined,
             title: 'Add Asset',
             subtitle: 'Register a new organization asset',
-            onTap: () {
-              _showMessage('Add Asset');
-            },
+            onTap: () => _showMessage('Add Asset'),
           ),
-
-          _quickAction(
+          AdminQuickAction(
             icon: Icons.assignment_ind_outlined,
             title: 'Assign Asset',
             subtitle: 'Assign an asset to an employee',
-            onTap: () {
-              _showMessage('Assign Asset');
-            },
+            onTap: () => _showMessage('Assign Asset'),
           ),
-
-          _quickAction(
-            icon: Icons.bar_chart,
+          AdminQuickAction(
+            icon: Icons.bar_chart_rounded,
             title: 'View Reports',
             subtitle: 'Check organization asset reports',
             onTap: () {
@@ -340,218 +196,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // ================= EMPLOYEES =================
-
-  Widget _employeesPage() {
-    return _simplePage(
-      icon: Icons.people_outline,
-      title: 'Employees',
-      subtitle: 'Manage all organization employee .',
-      buttonText: 'Add Employee',
-    );
-  }
-
-  // ================= ASSETS =================
-
-  Widget _assetsPage() {
-    return _simplePage(
-      icon: Icons.devices_other_outlined,
-      title: 'Assets',
-      subtitle: 'View and manage all organization assets.',
-      buttonText: 'Add Asset',
-    );
-  }
-
-  // ================= REQUESTS =================
-
-  Widget _requestsPage() {
-    return _simplePage(
-      icon: Icons.assignment_outlined,
-      title: 'Requests',
-      subtitle: 'Review employee and department requests.',
-      buttonText: 'View Requests',
-    );
-  }
-
-  // ================= MAINTENANCE =================
-
-  Widget _maintenancePage() {
-    return _simplePage(
-      icon: Icons.build_outlined,
-      title: 'Maintenance',
-      subtitle: 'Manage asset maintenance requests.',
-      buttonText: 'View Maintenance',
-    );
-  }
-
-  // ================= DEPARTMENTS =================
-
-  Widget _departmentsPage() {
-    return _simplePage(
-      icon: Icons.business_outlined,
-      title: 'Departments',
-      subtitle: 'Manage organization departments.',
-      buttonText: 'Add Department',
-    );
-  }
-
-  // ================= REPORTS =================
-
-  Widget _reportsPage() {
-    return _simplePage(
-      icon: Icons.bar_chart_outlined,
-      title: 'Reports',
-      subtitle: 'View organization-wide asset and employee reports.',
-      buttonText: 'Generate Report',
-    );
-  }
-
-  // ================= COMMON PAGE =================
-
-  Widget _simplePage({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String buttonText,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 70,
-              color: const Color(0xFF3B5BDB),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                _showMessage(buttonText);
-              },
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(buttonText),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B5BDB),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 13,
-                ),
-              ),
-            ),
+  Widget _buildWelcomeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF3157D5),
+            Color(0xFF5B7FE8),
           ],
         ),
-      ),
-    );
-  }
-
-  // ================= DRAWER ITEM =================
-
-  Widget _drawerItem({
-    required IconData icon,
-    required String title,
-    required int index,
-  }) {
-    final bool selected = _selectedIndex == index;
-
-    return ListTile(
-      selected: selected,
-      selectedTileColor: const Color(0xFFE8EDFF),
-      leading: Icon(
-        icon,
-        color: selected
-            ? const Color(0xFF3B5BDB)
-            : Colors.grey.shade700,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight:
-              selected ? FontWeight.bold : FontWeight.normal,
-          color: selected
-              ? const Color(0xFF3B5BDB)
-              : Colors.black87,
-        ),
-      ),
-      onTap: () {
-        setState(() {
-          _selectedIndex = index;
-        });
-
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  // ================= STAT CARD =================
-
-  Widget _statCard({
-    required String title,
-    required String value,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: primary.withOpacity(0.20),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: const Color(0xFF3B5BDB),
-            size: 28,
-          ),
-
-          const Spacer(),
-
           Text(
-            value,
-            style: const TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
+            'Welcome, Admin 👋',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
           ),
-
+          SizedBox(height: 6),
           Text(
-            title,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 13,
+            'Manage your organization from one place.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
             ),
           ),
         ],
@@ -559,39 +240,36 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // ================= QUICK ACTION =================
-
-  Widget _quickAction({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 5,
+  Widget _buildStatCards() {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.45,
+      children: const [
+        AdminStatCard(
+          title: 'Employees',
+          value: '128',
+          icon: Icons.people_rounded,
         ),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE8EDFF),
-          child: Icon(
-            icon,
-            color: const Color(0xFF3B5BDB),
-          ),
+        AdminStatCard(
+          title: 'Total Assets',
+          value: '356',
+          icon: Icons.devices_rounded,
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+        AdminStatCard(
+          title: 'Assigned Assets',
+          value: '291',
+          icon: Icons.assignment_turned_in_rounded,
         ),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+        AdminStatCard(
+          title: 'Pending Requests',
+          value: '18',
+          icon: Icons.pending_actions_rounded,
+        ),
+      ],
     );
   }
 
@@ -600,6 +278,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        behavior: SnackBarBehavior.floating,
         content: Text('$message screen will open here.'),
       ),
     );
@@ -610,7 +289,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _logout() {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Logout'),
           content: const Text(
@@ -619,13 +298,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
 
                 Navigator.pushNamedAndRemoveUntil(
                   context,
