@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'department_employees_page.dart';
@@ -47,8 +46,6 @@ class _DepartmentHeadDashboardState
     );
   }
 
-  // APP BAR
-
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
@@ -58,8 +55,10 @@ class _DepartmentHeadDashboardState
       titleSpacing: 0,
       title: Text(
         _titles[_selectedIndex],
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          fontSize: 19,
+          fontSize: 18,
           fontWeight: FontWeight.w800,
           color: textDark,
         ),
@@ -71,12 +70,12 @@ class _DepartmentHeadDashboardState
           icon: const Icon(Icons.notifications_none_rounded),
         ),
         Padding(
-          padding: const EdgeInsets.only(right: 15),
+          padding: const EdgeInsets.only(right: 12),
           child: InkWell(
             borderRadius: BorderRadius.circular(30),
             onTap: _openProfile,
             child: const CircleAvatar(
-              radius: 19,
+              radius: 18,
               backgroundColor: Color(0xFFE8EDFF),
               child: Text(
                 'DH',
@@ -93,140 +92,115 @@ class _DepartmentHeadDashboardState
     );
   }
 
-  // DRAWER
-
   Widget _buildDrawer() {
     return Drawer(
       backgroundColor: Colors.white,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(22, 55, 22, 27),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [primaryDark, primary, Color(0xFF7187F2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryDark, primary, Color(0xFF7187F2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 27,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.account_tree_rounded,
+                      size: 29,
+                      color: primary,
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Orgaflow',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Department Head Portal',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.account_tree_rounded,
-                    size: 31,
-                    color: primary,
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  _drawerItem(
+                    Icons.space_dashboard_rounded,
+                    'Dashboard',
+                    0,
                   ),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Orgaflow',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.3,
+                  _drawerItem(Icons.groups_rounded, 'Employees', 1),
+                  _drawerItem(Icons.devices_rounded, 'Department Assets', 2),
+                  _drawerItem(Icons.assignment_rounded, 'Requests', 3),
+                  _drawerItem(Icons.handyman_rounded, 'Maintenance', 4),
+                  _drawerItem(Icons.analytics_rounded, 'Reports', 5),
+                  const Divider(height: 28),
+                  ListTile(
+                    leading: const Icon(Icons.notifications_none_rounded),
+                    title: const Text('Notifications'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openNotifications();
+                    },
                   ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Department Head Portal',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
+                  ListTile(
+                    leading: const Icon(Icons.person_outline_rounded),
+                    title: const Text('My Profile'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openProfile();
+                    },
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                _drawerItem(
-                  Icons.space_dashboard_rounded,
-                  'Dashboard',
-                  0,
-                ),
-                _drawerItem(
-                  Icons.groups_rounded,
-                  'Employees',
-                  1,
-                ),
-                _drawerItem(
-                  Icons.devices_rounded,
-                  'Department Assets',
-                  2,
-                ),
-                _drawerItem(
-                  Icons.assignment_rounded,
-                  'Requests',
-                  3,
-                ),
-                _drawerItem(
-                  Icons.handyman_rounded,
-                  'Maintenance',
-                  4,
-                ),
-                _drawerItem(
-                  Icons.analytics_rounded,
-                  'Reports',
-                  5,
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(color: borderColor),
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.notifications_none_rounded,
+                  ListTile(
+                    leading: const Icon(
+                      Icons.logout_rounded,
+                      color: Colors.red,
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onTap: _logout,
                   ),
-                  title: const Text('Notifications'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openNotifications();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_outline_rounded),
-                  title: const Text('My Profile'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openProfile();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.logout_rounded,
-                    color: Colors.red,
-                  ),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: _logout,
-                ),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'ORGANIZATION ASSET PORTAL',
-              style: TextStyle(
-                fontSize: 10,
-                letterSpacing: 1.2,
-                color: textMuted,
-                fontWeight: FontWeight.w700,
+                ],
               ),
             ),
-          ),
-        ],
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'ORGANIZATION ASSET PORTAL',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.1,
+                  color: textMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -256,10 +230,7 @@ class _DepartmentHeadDashboardState
           ),
         ),
         trailing: selected
-            ? const Icon(
-                Icons.chevron_right_rounded,
-                color: primary,
-              )
+            ? const Icon(Icons.chevron_right_rounded, color: primary)
             : null,
         onTap: () {
           setState(() => _selectedIndex = index);
@@ -268,8 +239,6 @@ class _DepartmentHeadDashboardState
       ),
     );
   }
-
-  // NAVIGATION
 
   Widget _buildBody() {
     switch (_selectedIndex) {
@@ -310,311 +279,276 @@ class _DepartmentHeadDashboardState
     setState(() => _selectedIndex = index);
   }
 
-  // MAIN DASHBOARD
+  // RESPONSIVE DASHBOARD
 
   Widget _dashboardPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Welcome back! 👋',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: textDark,
-              letterSpacing: -0.6,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final horizontalPadding = width < 360 ? 12.0 : 18.0;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            28,
           ),
-          const SizedBox(height: 7),
-          const Text(
-            'Here is what is happening in your department.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: textMuted,
-            ),
-          ),
-          const SizedBox(height: 23),
-
-          _departmentBanner(),
-
-          const SizedBox(height: 27),
-
-          _sectionHeading(
-            'Department Overview',
-            'A quick look at your department',
-            icon: Icons.insights_rounded,
-          ),
-
-          const SizedBox(height: 15),
-
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 650 ? 4 : 2;
-              return GridView.count(
-                crossAxisCount: columns,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: columns == 4 ? 1.05 : 1.23,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _statCard(
-                    title: 'Employees',
-                    value: '42',
-                    icon: Icons.groups_rounded,
-                    color: const Color(0xFF3B5BDB),
-                    backgroundColor: const Color(0xFFEDF0FF),
-                    onTap: () => _navigateTo(1),
+                  const Text(
+                    'Welcome back! 👋',
+                    style: TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w900,
+                      color: textDark,
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                  _statCard(
-                    title: 'Total Assets',
-                    value: '96',
-                    icon: Icons.devices_rounded,
-                    color: const Color(0xFF078A71),
-                    backgroundColor: const Color(0xFFE4F7F1),
-                    onTap: () => _navigateTo(2),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'Here is what is happening in your department.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: textMuted,
+                    ),
                   ),
-                  _statCard(
-                    title: 'Pending Requests',
-                    value: '08',
-                    icon: Icons.pending_actions_rounded,
-                    color: const Color(0xFFD88716),
-                    backgroundColor: const Color(0xFFFFF3DE),
-                    onTap: () => _navigateTo(3),
+                  const SizedBox(height: 22),
+                  _departmentBanner(),
+                  const SizedBox(height: 28),
+                  _sectionHeading(
+                    'Department Overview',
+                    'A quick look at your department',
+                    icon: Icons.insights_rounded,
                   ),
-                  _statCard(
-                    title: 'Maintenance',
-                    value: '05',
-                    icon: Icons.build_circle_outlined,
-                    color: const Color(0xFF8A52CF),
-                    backgroundColor: const Color(0xFFF2EAFE),
-                    onTap: () => _navigateTo(4),
+                  const SizedBox(height: 15),
+                  _buildStatsGrid(width),
+                  const SizedBox(height: 28),
+                  _sectionHeading(
+                    'Quick Actions',
+                    'Go directly to what you need',
+                    icon: Icons.bolt_rounded,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildQuickActions(width),
+                  const SizedBox(height: 28),
+                  _sectionHeading(
+                    'Recent Activity',
+                    'Latest department updates',
+                    icon: Icons.history_rounded,
+                  ),
+                  const SizedBox(height: 15),
+                  _recentActivity(),
+                  const SizedBox(height: 24),
+                  const Center(
+                    child: Text(
+                      'Orgaflow • Department Portal',
+                      style: TextStyle(
+                        color: textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ],
-              );
-            },
-          ),
-
-          const SizedBox(height: 28),
-
-          _sectionHeading(
-            'Quick Actions',
-            'Go directly to what you need',
-            icon: Icons.bolt_rounded,
-          ),
-
-          const SizedBox(height: 15),
-
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final actions = [
-                _actionData(
-                  Icons.groups_rounded,
-                  'Employees',
-                  'View your team',
-                  const Color(0xFF3B5BDB),
-                  1,
-                ),
-                _actionData(
-                  Icons.devices_rounded,
-                  'Assets',
-                  'Explore department assets',
-                  const Color(0xFF078A71),
-                  2,
-                ),
-                _actionData(
-                  Icons.assignment_rounded,
-                  'Requests',
-                  'Review employee requests',
-                  const Color(0xFFD88716),
-                  3,
-                ),
-                _actionData(
-                  Icons.handyman_rounded,
-                  'Maintenance',
-                  'Check repair status',
-                  const Color(0xFF8A52CF),
-                  4,
-                ),
-                _actionData(
-                  Icons.bar_chart_rounded,
-                  'Reports',
-                  'View department reports',
-                  const Color(0xFFDB5875),
-                  5,
-                ),
-              ];
-
-              if (constraints.maxWidth >= 650) {
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: actions.map((item) {
-                    return SizedBox(
-                      width: (constraints.maxWidth - 24) / 3,
-                      child: _quickAction(item),
-                    );
-                  }).toList(),
-                );
-              }
-
-              return Column(
-                children: actions.map(_quickAction).toList(),
-              );
-            },
-          ),
-
-          const SizedBox(height: 28),
-
-          _sectionHeading(
-            'Recent Activity',
-            'Latest department updates',
-            icon: Icons.history_rounded,
-          ),
-
-          const SizedBox(height: 15),
-
-          _recentActivity(),
-
-          const SizedBox(height: 12),
-
-          Center(
-            child: Text(
-              'Orgaflow • Department Portal',
-              style: TextStyle(
-                color: Colors.blueGrey.shade300,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  // DEPARTMENT BANNER
+  Widget _buildStatsGrid(double width) {
+    final columns = width >= 900
+        ? 4
+        : width >= 540
+            ? 2
+            : 2;
+
+    return GridView.count(
+      crossAxisCount: columns,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      // More vertical room on small phones prevents text overflow.
+      childAspectRatio: width < 360
+          ? 1.02
+          : width < 540
+              ? 1.14
+              : width < 900
+                  ? 1.45
+                  : 1.30,
+      children: [
+        _statCard(
+          title: 'Employees',
+          value: '42',
+          icon: Icons.groups_rounded,
+          color: const Color(0xFF3B5BDB),
+          backgroundColor: const Color(0xFFEDF0FF),
+          onTap: () => _navigateTo(1),
+        ),
+        _statCard(
+          title: 'Total Assets',
+          value: '96',
+          icon: Icons.devices_rounded,
+          color: const Color(0xFF078A71),
+          backgroundColor: const Color(0xFFE4F7F1),
+          onTap: () => _navigateTo(2),
+        ),
+        _statCard(
+          title: 'Pending Requests',
+          value: '08',
+          icon: Icons.pending_actions_rounded,
+          color: const Color(0xFFD88716),
+          backgroundColor: const Color(0xFFFFF3DE),
+          onTap: () => _navigateTo(3),
+        ),
+        _statCard(
+          title: 'Maintenance',
+          value: '05',
+          icon: Icons.build_circle_outlined,
+          color: const Color(0xFF8A52CF),
+          backgroundColor: const Color(0xFFF2EAFE),
+          onTap: () => _navigateTo(4),
+        ),
+      ],
+    );
+  }
 
   Widget _departmentBanner() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(21),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [primaryDark, primary, Color(0xFF7187F2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(23),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: primary.withValues(alpha: 0.20),
-            blurRadius: 20,
-            offset: const Offset(0, 9),
+            color: primary.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -14,
-            top: -22,
-            child: Icon(
-              Icons.account_tree_rounded,
-              size: 120,
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 7,
+              Positioned(
+                right: 0,
+                top: 5,
+                child: IgnorePointer(
+                  child: Icon(
+                    Icons.account_tree_rounded,
+                    size: constraints.maxWidth < 350 ? 64 : 95,
+                    color: Colors.white.withValues(alpha: 0.09),
+                  ),
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.17),
-                  borderRadius: BorderRadius.circular(30),
+              ),
+              Padding(
+                // Reserve room for the decorative icon.
+                padding: EdgeInsets.only(
+                  right: constraints.maxWidth < 350 ? 0 : 42,
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.verified_rounded,
-                      color: Colors.white,
-                      size: 14,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.verified_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                          Text(
+                            'DEPARTMENT HEAD',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.7,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    SizedBox(width: 6),
-                    Text(
-                      'DEPARTMENT HEAD',
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Your Department',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Department Name',
+                      softWrap: true,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Manage people, assets and requests from one place.',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => _navigateTo(1),
+                      icon: const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                      ),
+                      label: const Text('Explore Department'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 11,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              const Text(
-                'Your Department',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 5),
-              const Text(
-                'Department Name',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Manage people, assets and requests\nfrom one place.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  height: 1.6,
-                ),
-              ),
-              const SizedBox(height: 18),
-              OutlinedButton.icon(
-                onPressed: () => _navigateTo(1),
-                icon: const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 16,
-                ),
-                label: const Text('Explore Department'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
-
-  // SECTION HEADING
 
   Widget _sectionHeading(
     String title,
@@ -622,6 +556,7 @@ class _DepartmentHeadDashboardState
     required IconData icon,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: 42,
@@ -641,7 +576,7 @@ class _DepartmentHeadDashboardState
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: textDark,
                 ),
@@ -649,9 +584,11 @@ class _DepartmentHeadDashboardState
               const SizedBox(height: 3),
               Text(
                 subtitle,
+                softWrap: true,
                 style: const TextStyle(
                   color: textMuted,
                   fontSize: 11,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -660,8 +597,6 @@ class _DepartmentHeadDashboardState
       ],
     );
   }
-
-  // STATISTICS CARD
 
   Widget _statCard({
     required String title,
@@ -673,66 +608,131 @@ class _DepartmentHeadDashboardState
   }) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(19),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(19),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: borderColor),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 42,
-                width: 42,
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const Spacer(),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                  color: textDark,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 7),
-              Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: color, size: 21),
+                  ),
+                  const Spacer(),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w900,
+                      color: textDark,
+                      height: 1.1,
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_outward_rounded,
-                    size: 14,
-                    color: color,
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          softWrap: true,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.arrow_outward_rounded,
+                        size: 13,
+                        color: color,
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  // QUICK ACTION DATA
+  Widget _buildQuickActions(double width) {
+    final actions = [
+      _actionData(
+        Icons.groups_rounded,
+        'Employees',
+        'View your team',
+        const Color(0xFF3B5BDB),
+        1,
+      ),
+      _actionData(
+        Icons.devices_rounded,
+        'Assets',
+        'Explore department assets',
+        const Color(0xFF078A71),
+        2,
+      ),
+      _actionData(
+        Icons.assignment_rounded,
+        'Requests',
+        'Review employee requests',
+        const Color(0xFFD88716),
+        3,
+      ),
+      _actionData(
+        Icons.handyman_rounded,
+        'Maintenance',
+        'Check repair status',
+        const Color(0xFF8A52CF),
+        4,
+      ),
+      _actionData(
+        Icons.bar_chart_rounded,
+        'Reports',
+        'View department reports',
+        const Color(0xFFDB5875),
+        5,
+      ),
+    ];
+
+    if (width >= 700) {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: actions.map((item) {
+          return SizedBox(
+            width: (width - 24) / 3,
+            child: _quickAction(item),
+          );
+        }).toList(),
+      );
+    }
+
+    return Column(
+      children: actions.map(_quickAction).toList(),
+    );
+  }
 
   Map<String, dynamic> _actionData(
     IconData icon,
@@ -775,21 +775,22 @@ class _DepartmentHeadDashboardState
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(icon, color: color, size: 23),
+                  child: Icon(icon, color: color, size: 22),
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
+                        softWrap: true,
                         style: const TextStyle(
                           color: textDark,
                           fontSize: 13,
@@ -799,15 +800,17 @@ class _DepartmentHeadDashboardState
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
+                        softWrap: true,
                         style: const TextStyle(
                           color: textMuted,
                           fontSize: 11,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 8),
                 const Icon(
                   Icons.chevron_right_rounded,
                   color: textMuted,
@@ -821,12 +824,10 @@ class _DepartmentHeadDashboardState
     );
   }
 
-  // RECENT ACTIVITY
-
   Widget _recentActivity() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(17),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(19),
@@ -877,13 +878,13 @@ class _DepartmentHeadDashboardState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 21),
+            child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -892,6 +893,7 @@ class _DepartmentHeadDashboardState
               children: [
                 Text(
                   title,
+                  softWrap: true,
                   style: const TextStyle(
                     fontSize: 12,
                     color: textDark,
@@ -901,6 +903,7 @@ class _DepartmentHeadDashboardState
                 const SizedBox(height: 5),
                 Text(
                   subtitle,
+                  softWrap: true,
                   style: const TextStyle(
                     fontSize: 11,
                     height: 1.4,
@@ -924,8 +927,6 @@ class _DepartmentHeadDashboardState
     );
   }
 
-  // LOGOUT
-
   void _logout() {
     showDialog<void>(
       context: context,
@@ -933,15 +934,17 @@ class _DepartmentHeadDashboardState
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
           ),
           title: const Row(
             children: [
               Icon(Icons.logout_rounded, color: Colors.red),
               SizedBox(width: 10),
-              Text(
-                'Logout?',
-                style: TextStyle(fontWeight: FontWeight.w800),
+              Expanded(
+                child: Text(
+                  'Logout?',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -965,9 +968,6 @@ class _DepartmentHeadDashboardState
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(11),
-                ),
               ),
               child: const Text('Logout'),
             ),
