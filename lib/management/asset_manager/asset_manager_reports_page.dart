@@ -30,7 +30,6 @@ class _AssetManagerReportsPageState
   static const Color green = Color(0xFF16834B);
   static const Color orange = Color(0xFFB26A00);
   static const Color red = Color(0xFFC62828);
-  static const Color purple = Color(0xFF7C4DFF);
   static const Color textPrimary = Color(0xFF1F2937);
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color pageBackground = Color(0xFFF7F8FC);
@@ -189,7 +188,7 @@ class _AssetManagerReportsPageState
       final date = activityDate(record);
 
       // Unknown dates are included only in All Time.
-      if (start != null && (date == null || date.isBefore(start!))) {
+      if (start != null && (date == null || date.isBefore(start))) {
         return false;
       }
 
