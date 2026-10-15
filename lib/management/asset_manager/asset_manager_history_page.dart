@@ -39,8 +39,8 @@ class _AssetManagerHistoryPageState
 
   String get _baseUrl {
     // Use the same base URL configuration as your other API screens.
-    return (widget.userData?['baseUrl'] ??
-            widget.userData?['base_url'] ??
+    return (widget.userData?['http://127.0.0.1:8000'] ??
+            widget.userData?['http://127.0.0.1:8000'] ??
             '')
         .toString()
         .replaceAll(RegExp(r'/+$'), '');
