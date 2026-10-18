@@ -1,120 +1,229 @@
-
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EmployeeNotificationService {
-  // Apne login screen mein use hone wala SAME FastAPI base URL yahan lagao.
-  // Android emulator: http://10.0.2.2:8000
+  // Android emulator ke liye.
   static const String baseUrl = 'http://127.0.0.1:8000';
+
+  // Login screen mein token jis key se save hota hai,
+  // us key ko is list mein confirm kar lena.
+  static const List<String> _tokenKeys = [
+    'access_token',
+    'accessToken',
+    'token',
+    'jwt_token',
+    'jwtToken',
+  ];
 
   final String? token;
 
   EmployeeNotificationService({this.token});
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        if (token != null && token!.trim().isNotEmpty)
-          'Authorization': 'Bearer ${token!.trim()}',
-      };
+  /// Saved JWT token read karta hai.
+  Future<String> _getToken() async {
+    // Agar constructor mein token diya hai, to use karo.
+    if (token != null && token!.trim().isNotEmpty) {
+      return token!.trim();
+    }
 
-  void _checkAuth() {
-    if (token == null || token!.trim().isEmpty) {
+    final prefs = await SharedPreferences.getInstance();
+
+    for (final key in _tokenKeys) {
+      final value = prefs.getString(key);
+
+      if (value != null && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+
+    throw Exception(
+      'Login token missing. Login screen mein JWT access token save karo.',
+    );
+  }
+
+  /// Har authenticated API call ke headers.
+  Future<Map<String, String>> _getHeaders() async {
+    final accessToken = await _getToken();
+
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $accessToken',
+    };
+  }
+
+  /// Common HTTP response validation.
+  void _validateResponse(
+    http.Response response,
+    String action,
+  ) {
+    if (response.statusCode == 401 ||
+        response.statusCode == 403) {
       throw Exception(
-        'Login token missing. Login response se access token pass karo.',
+        'Authentication failed. Session expire ho sakta hai; dobara login karo.',
+      );
+    }
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      throw Exception(
+        '$action failed. HTTP ${response.statusCode}: ${response.body}',
       );
     }
   }
 
-  /// Employee ki notifications fetch karta hai.
-  Future<List<Map<String, dynamic>>> getNotifications() async {
-    _checkAuth();
+  /// API response ko notifications ki list mein convert karta hai.
+  List<Map<String, dynamic>> _parseNotifications(
+    dynamic decoded,
+  ) {
+    dynamic items;
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/notifications/me'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 15));
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-
-      final List<dynamic> items = decoded is List
-          ? decoded
-          : (decoded is Map && decoded['notifications'] is List)
-              ? decoded['notifications'] as List
-              : [];
-
-      return items
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
+    if (decoded is List) {
+      items = decoded;
+    } else if (decoded is Map &&
+        decoded['notifications'] is List) {
+      items = decoded['notifications'];
+    } else if (decoded is Map &&
+        decoded['data'] is List) {
+      items = decoded['data'];
+    } else {
+      items = <dynamic>[];
     }
 
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('Session expire ho gaya. Dobara login karo.');
-    }
-
-    throw Exception(
-      'Notifications load nahi hui. Server response: ${response.statusCode}',
-    );
+    return (items as List)
+        .whereType<Map>()
+        .map(
+          (item) => Map<String, dynamic>.from(item),
+        )
+        .toList();
   }
 
-  /// Unread notifications ki total count.
+  /// Employee ki notifications load karta hai.
+  Future<List<Map<String, dynamic>>> getNotifications() async {
+    final headers = await _getHeaders();
+
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/notifications/me'),
+          headers: headers,
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _validateResponse(response, 'Notifications load');
+
+    final dynamic decoded = jsonDecode(response.body);
+
+    return _parseNotifications(decoded);
+  }
+
+  /// Unread notifications ki count load karta hai.
   Future<int> getUnreadCount() async {
-    _checkAuth();
+    final headers = await _getHeaders();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/notifications/unread-count'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/notifications/unread-count'),
+          headers: headers,
+        )
+        .timeout(const Duration(seconds: 15));
 
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
+    _validateResponse(response, 'Unread count load');
 
-      if (decoded is int) return decoded;
+    final dynamic decoded = jsonDecode(response.body);
 
-      if (decoded is Map) {
-        final value = decoded['unread_count'] ??
-            decoded['count'] ??
-            decoded['unread'];
+    if (decoded is int) {
+      return decoded;
+    }
 
-        if (value is int) return value;
-        if (value is num) return value.toInt();
-        if (value is String) return int.tryParse(value) ?? 0;
+    if (decoded is Map) {
+      final value = decoded['unread_count'] ??
+          decoded['count'] ??
+          decoded['unread'];
+
+      if (value is int) {
+        return value;
       }
 
-      return 0;
+      if (value is num) {
+        return value.toInt();
+      }
+
+      if (value is String) {
+        return int.tryParse(value) ?? 0;
+      }
     }
 
-    throw Exception(
-      'Unread count load nahi hui: ${response.statusCode}',
-    );
+    return 0;
   }
 
-  /// Notification ko read mark karta hai.
+  /// Ek notification ko read mark karta hai.
+  ///
+  /// notificationId ko backend ke actual notification ID se call karo.
   Future<bool> markAsRead(dynamic notificationId) async {
-    _checkAuth();
+    if (notificationId == null ||
+        notificationId.toString().trim().isEmpty) {
+      throw Exception('Notification ID missing.');
+    }
 
-    final response = await http.patch(
-      Uri.parse(
-        '$baseUrl/api/notifications/${Uri.encodeComponent(notificationId.toString())}/read',
-      ),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 15));
+    final headers = await _getHeaders();
 
-    return response.statusCode == 200 ||
-        response.statusCode == 204;
+    final id = Uri.encodeComponent(
+      notificationId.toString(),
+    );
+
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/notifications/$id/read'),
+          headers: headers,
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _validateResponse(response, 'Mark notification as read');
+
+    return true;
   }
 
-  /// Sabhi notifications ko read mark karta hai.
+  /// Saari notifications ko read mark karta hai.
   Future<bool> markAllAsRead() async {
-    _checkAuth();
+    final headers = await _getHeaders();
 
-    final response = await http.patch(
-      Uri.parse('$baseUrl/api/notifications/read-all'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/notifications/read-all'),
+          headers: headers,
+        )
+        .timeout(const Duration(seconds: 15));
 
-    return response.statusCode == 200 ||
-        response.statusCode == 204;
+    _validateResponse(response, 'Mark all as read');
+
+    return true;
+  }
+
+  /// Notifications aur unread count ko ek saath load karne ka helper.
+  Future<Map<String, dynamic>> getNotificationSummary() async {
+    final results = await Future.wait<dynamic>([
+      getNotifications(),
+      getUnreadCount(),
+    ]);
+
+    return {
+      'notifications': results[0] as List<Map<String, dynamic>>,
+      'unread_count': results[1] as int,
+    };
+  }
+
+  /// Debug ke liye token saved hai ya nahi check karta hai.
+  /// Security ke liye actual token print nahi karta.
+  Future<bool> hasSavedToken() async {
+    try {
+      final value = await _getToken();
+      return value.isNotEmpty;
+    } catch (e) {
+      debugPrint('Notification token check: $e');
+      return false;
+    }
   }
 }
