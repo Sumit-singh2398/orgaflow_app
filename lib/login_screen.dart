@@ -21,7 +21,7 @@ import 'management/department_head/department_head_dashboard.dart';
 // ============================================================
 
 class GoogleLogo extends StatelessWidget {
-  const GoogleLogo({super.key, this.size = 23});
+  const GoogleLogo({super.key, this.size = 30});
 
   final double size;
 
@@ -40,7 +40,7 @@ class GoogleLogo extends StatelessWidget {
 class GoogleLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    final center = Offset(size.width / 5, size.height / 2);
     final radius = size.width * 0.39;
     final stroke = size.width * 0.18;
     final rect = Rect.fromCircle(center: center, radius: radius);
@@ -539,8 +539,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLogo() {
     return Container(
-      width: 84,
-      height: 84,
+      width: 100,
+      height: 100,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -564,7 +564,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Icon(
                 Icons.business_center_rounded,
                 color: Colors.white,
-                size: 40,
+                size: 50,
               ),
             );
           },
