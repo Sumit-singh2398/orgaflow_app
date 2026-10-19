@@ -7,45 +7,35 @@ import 'package:http/http.dart' as http;
 class AssetManagerAssignPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
 
-  const AssetManagerAssignPage({
-    super.key,
-    this.userData,
-  });
+  const AssetManagerAssignPage({super.key, this.userData});
 
   @override
   State<AssetManagerAssignPage> createState() =>
       _AssetManagerAssignPageState();
 }
 
-class _AssetManagerAssignPageState
-    extends State<AssetManagerAssignPage> {
-  // Android emulator:
+class _AssetManagerAssignPageState extends State<AssetManagerAssignPage> {
+  // Android emulator. For a physical phone, use your computer's LAN IP.
   static const String baseUrl = 'http://10.0.2.2:8000';
-
-  // Real phone par laptop ka Wi-Fi IP use karein, e.g.:
-  // static const String baseUrl = 'http://192.168.1.5:8000';
-  //
-  // 127.0.0.1 phone ke andar phone ko hi refer karta hai.
-  // Laptop browser mein 127.0.0.1 kaam karta hai, lekin
-  // physical phone se laptop access karne ke liye nahi.
 
   static const Color primary = Color(0xFF3B5BDB);
   static const Color background = Color(0xFFF4F6FB);
   static const Color textDark = Color(0xFF182230);
   static const Color textMuted = Color(0xFF737D90);
   static const Color success = Color(0xFF0F9D80);
+  static const Color danger = Color(0xFFB42318);
 
   final _formKey = GlobalKey<FormState>();
-
-  final _employeeNameController = TextEditingController();
-  final _employeeEmailController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _departmentController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  String? selectedAsset;
+  String? selectedAssetCode;
   bool isAssigning = false;
   Map<String, dynamic>? lastAssignment;
 
+  // Demo assets. Connect these to your real asset API for production.
   final List<Map<String, dynamic>> assets = [
     {
       'id': 'AST-001',
@@ -94,18 +84,15 @@ class _AssetManagerAssignPageState
     },
   ];
 
-  Map<String, dynamic>? get selectedAssetData {
+  Map<String, dynamic>? get selectedAsset {
     for (final asset in assets) {
-      if (asset['id'] == selectedAsset) return asset;
+      if (asset['id'] == selectedAssetCode) return asset;
     }
     return null;
   }
 
-  List<Map<String, dynamic>> get availableAssets {
-    return assets
-        .where((asset) => asset['status'] == 'Available')
-        .toList();
-  }
+  List<Map<String, dynamic>> get availableAssets =>
+      assets.where((a) => a['status'] == 'Available').toList();
 
   @override
   void initState() {
@@ -113,20 +100,16 @@ class _AssetManagerAssignPageState
 
     final user = widget.userData ?? {};
 
-    _employeeNameController.text =
+    _nameController.text =
         (user['name'] ?? user['full_name'] ?? '').toString();
-
-    _employeeEmailController.text =
-        (user['email'] ?? '').toString();
-
-    _departmentController.text =
-        (user['department'] ?? '').toString();
+    _emailController.text = (user['email'] ?? '').toString();
+    _departmentController.text = (user['department'] ?? '').toString();
   }
 
   @override
   void dispose() {
-    _employeeNameController.dispose();
-    _employeeEmailController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
     _departmentController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -134,31 +117,91 @@ class _AssetManagerAssignPageState
 
   @override
   Widget build(BuildContext context) {
+    final asset = selectedAsset;
+
     return Scaffold(
       backgroundColor: background,
+      appBar: AppBar(
+        title: const Text(
+          'Assign Asset',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        foregroundColor: Colors.white,
+        backgroundColor: primary,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildHeader(),
-            const SizedBox(height: 20),
-            _buildSummary(),
+            _header(),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _statCard(
+                    'Available',
+                    '${availableAssets.length}',
+                    Icons.inventory_2_outlined,
+                    primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _statCard(
+                    'Workflow',
+                    'Email alert',
+                    Icons.mark_email_read_outlined,
+                    success,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
-            _buildSectionTitle(
+            _sectionTitle(
               'Select Asset',
               'Choose an asset that is currently available.',
-              Icons.inventory_2_outlined,
+              Icons.devices_other_outlined,
             ),
             const SizedBox(height: 12),
-            _buildAssetDropdown(),
-            if (selectedAssetData != null) ...[
+            DropdownButtonFormField<String>(
+              value: availableAssets.any(
+                (a) => a['id'] == selectedAssetCode,
+              )
+                  ? selectedAssetCode
+                  : null,
+              isExpanded: true,
+              decoration: _decoration(
+                'Available Asset',
+                Icons.inventory_2_outlined,
+              ),
+              hint: const Text('Choose an asset'),
+              items: availableAssets.map((a) {
+                return DropdownMenuItem<String>(
+                  value: a['id'] as String,
+                  child: Text(
+                    '${a['id']} - ${a['name']}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: isAssigning
+                  ? null
+                  : (value) {
+                      setState(() {
+                        selectedAssetCode = value;
+                        lastAssignment = null;
+                      });
+                    },
+            ),
+            if (asset != null) ...[
               const SizedBox(height: 12),
-              _buildSelectedAsset(selectedAssetData!),
+              _assetCard(asset),
             ],
             const SizedBox(height: 24),
-            _buildSectionTitle(
+            _sectionTitle(
               'Employee Information',
-              'Confirm the employee details before assigning.',
+              'The assignment notification will be sent to this email.',
               Icons.person_outline,
             ),
             const SizedBox(height: 14),
@@ -166,11 +209,11 @@ class _AssetManagerAssignPageState
               key: _formKey,
               child: Column(
                 children: [
-                  _buildField(
-                    controller: _employeeNameController,
-                    label: 'Employee Full Name',
-                    hint: 'Enter employee name',
-                    icon: Icons.badge_outlined,
+                  _field(
+                    _nameController,
+                    'Employee Full Name',
+                    'Enter employee name',
+                    Icons.badge_outlined,
                     validator: (value) {
                       if (value == null || value.trim().length < 2) {
                         return 'Enter a valid employee name';
@@ -178,42 +221,41 @@ class _AssetManagerAssignPageState
                       return null;
                     },
                   ),
-                  const SizedBox(height: 14),
-                  _buildField(
-                    controller: _employeeEmailController,
-                    label: 'Employee Email Address',
-                    hint: 'employee@company.com',
-                    icon: Icons.email_outlined,
+                  const SizedBox(height: 13),
+                  _field(
+                    _emailController,
+                    'Employee Email Address',
+                    'employee@company.com',
+                    Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
-                      final email = value?.trim() ?? '';
-                      if (!RegExp(
+                      final email = (value ?? '').trim();
+                      final valid = RegExp(
                         r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                      ).hasMatch(email)) {
-                        return 'Enter a valid email address';
-                      }
-                      return null;
+                      ).hasMatch(email);
+
+                      return valid ? null : 'Enter a valid email address';
                     },
                   ),
-                  const SizedBox(height: 14),
-                  _buildField(
-                    controller: _departmentController,
-                    label: 'Department',
-                    hint: 'IT, HR, Finance...',
-                    icon: Icons.apartment_outlined,
+                  const SizedBox(height: 13),
+                  _field(
+                    _departmentController,
+                    'Department',
+                    'IT, HR, Finance...',
+                    Icons.apartment_outlined,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Enter the department';
+                        return 'Enter department';
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 14),
-                  _buildField(
-                    controller: _descriptionController,
-                    label: 'Assignment Description',
-                    hint: 'Purpose, condition or usage instructions',
-                    icon: Icons.notes_outlined,
+                  const SizedBox(height: 13),
+                  _field(
+                    _descriptionController,
+                    'Assignment Description',
+                    'Purpose, condition or usage instructions',
+                    Icons.notes_outlined,
                     maxLines: 3,
                     validator: (value) {
                       if (value == null || value.trim().length < 5) {
@@ -226,7 +268,7 @@ class _AssetManagerAssignPageState
               ),
             ),
             const SizedBox(height: 16),
-            _buildInfoBanner(),
+            _infoBanner(),
             const SizedBox(height: 20),
             SizedBox(
               height: 54,
@@ -235,7 +277,8 @@ class _AssetManagerAssignPageState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primary,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: primary.withValues(alpha: 0.55),
+                  disabledBackgroundColor:
+                      primary.withValues(alpha: 0.55),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
@@ -246,32 +289,39 @@ class _AssetManagerAssignPageState
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2.3,
+                          strokeWidth: 2.2,
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.assignment_turned_in_outlined),
+                    : const Icon(
+                        Icons.assignment_turned_in_outlined,
+                      ),
                 label: Text(
-                  isAssigning ? 'Saving Assignment...' : 'Confirm Assignment',
+                  isAssigning
+                      ? 'Saving and Sending Email...'
+                      : 'Confirm Assignment',
                   style: const TextStyle(
-                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
-            if (isAssigning) ...[
-              const SizedBox(height: 12),
-              const Center(
-                child: Text(
-                  'Contacting server. Please wait...',
-                  style: TextStyle(fontSize: 12, color: textMuted),
+            if (isAssigning)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Center(
+                  child: Text(
+                    'Please wait for the server response.',
+                    style: TextStyle(
+                      color: textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
-            ],
             if (lastAssignment != null) ...[
               const SizedBox(height: 22),
-              _buildConfirmation(lastAssignment!),
+              _confirmation(lastAssignment!),
             ],
             const SizedBox(height: 28),
           ],
@@ -280,12 +330,15 @@ class _AssetManagerAssignPageState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _header() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF3B5BDB), Color(0xFF657CF0)],
+          colors: [
+            Color(0xFF3B5BDB),
+            Color(0xFF657CF0),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -320,8 +373,11 @@ class _AssetManagerAssignPageState
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Allocate company assets to employees',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  'Allocate an asset and notify the employee by email',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -331,31 +387,7 @@ class _AssetManagerAssignPageState
     );
   }
 
-  Widget _buildSummary() {
-    return Row(
-      children: [
-        Expanded(
-          child: _summaryCard(
-            'Available Assets',
-            '${availableAssets.length}',
-            Icons.inventory_2_outlined,
-            primary,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _summaryCard(
-            'Assignment',
-            'Manual',
-            Icons.person_search_outlined,
-            success,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _summaryCard(
+  Widget _statCard(
     String label,
     String value,
     IconData icon,
@@ -366,7 +398,9 @@ class _AssetManagerAssignPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFE8ECF4)),
+        border: Border.all(
+          color: const Color(0xFFE8ECF4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,21 +411,24 @@ class _AssetManagerAssignPageState
             value,
             style: const TextStyle(
               color: textDark,
-              fontSize: 21,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: textMuted, fontSize: 11),
+            style: const TextStyle(
+              color: textMuted,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(
+  Widget _sectionTitle(
     String title,
     String subtitle,
     IconData icon,
@@ -437,53 +474,15 @@ class _AssetManagerAssignPageState
     );
   }
 
-  Widget _buildAssetDropdown() {
-    final items = availableAssets;
-
-    // Agar selected asset available nahi raha, dropdown ko safe rakhein.
-    final validValue = items.any((a) => a['id'] == selectedAsset)
-        ? selectedAsset
-        : null;
-
-    return DropdownButtonFormField<String>(
-      value: validValue,
-      isExpanded: true,
-      decoration: _inputDecoration(
-        'Available Asset',
-        Icons.devices_other_outlined,
-      ),
-      hint: const Text('Select an asset'),
-      items: items.map((asset) {
-        return DropdownMenuItem<String>(
-          value: asset['id'] as String,
-          child: Text(
-            '${asset['id']} - ${asset['name']}',
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList(),
-      onChanged: isAssigning
-          ? null
-          : (value) {
-              setState(() {
-                selectedAsset = value;
-                lastAssignment = null;
-              });
-            },
-      validator: (value) {
-        if (value == null) return 'Please select an available asset';
-        return null;
-      },
-    );
-  }
-
-  Widget _buildSelectedAsset(Map<String, dynamic> asset) {
+  Widget _assetCard(Map<String, dynamic> asset) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFDCE4FF)),
+        border: Border.all(
+          color: const Color(0xFFDCE4FF),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,7 +496,10 @@ class _AssetManagerAssignPageState
                   color: primary.withValues(alpha: 0.09),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(Icons.devices_outlined, color: primary),
+                child: const Icon(
+                  Icons.devices_outlined,
+                  color: primary,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -522,24 +524,27 @@ class _AssetManagerAssignPageState
                   ],
                 ),
               ),
-              const Icon(Icons.check_circle, color: success),
+              const Icon(
+                Icons.check_circle,
+                color: success,
+              ),
             ],
           ),
           const Divider(height: 25),
-          _detailRow('Brand', '${asset['brand']}'),
-          _detailRow('Specifications', '${asset['specification']}'),
-          _detailRow('Location', '${asset['location']}'),
-          _detailRow('Status', '${asset['status']}'),
+          _detail('Brand', '${asset['brand']}'),
+          _detail('Specifications', '${asset['specification']}'),
+          _detail('Location', '${asset['location']}'),
+          _detail('Status', '${asset['status']}'),
         ],
       ),
     );
   }
 
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
+  Widget _field(
+    TextEditingController controller,
+    String label,
+    String hint,
+    IconData icon, {
     String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
@@ -548,11 +553,11 @@ class _AssetManagerAssignPageState
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      enabled: !isAssigning,
       textCapitalization: keyboardType == TextInputType.emailAddress
           ? TextCapitalization.none
           : TextCapitalization.words,
-      enabled: !isAssigning,
-      decoration: _inputDecoration(label, icon).copyWith(
+      decoration: _decoration(label, icon).copyWith(
         hintText: hint,
         alignLabelWithHint: maxLines > 1,
       ),
@@ -565,7 +570,7 @@ class _AssetManagerAssignPageState
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  InputDecoration _decoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, size: 21),
@@ -577,36 +582,50 @@ class _AssetManagerAssignPageState
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE1E6EF)),
+        borderSide: const BorderSide(
+          color: Color(0xFFE1E6EF),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE1E6EF)),
+        borderSide: const BorderSide(
+          color: Color(0xFFE1E6EF),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: primary, width: 1.5),
+        borderSide: const BorderSide(
+          color: primary,
+          width: 1.5,
+        ),
       ),
     );
   }
 
-  Widget _buildInfoBanner() {
+  Widget _infoBanner() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFEFF4FF),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD9E4FF)),
+        border: Border.all(
+          color: const Color(0xFFD9E4FF),
+        ),
       ),
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, color: primary, size: 21),
+          Icon(
+            Icons.mark_email_read_outlined,
+            color: primary,
+            size: 21,
+          ),
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'The server must verify the employee account and asset '
-              'availability before saving the assignment.',
+              'The backend saves the assignment in PostgreSQL and attempts '
+              'to send an email. SMTP must be configured on the server. '
+              'The confirmation will show whether email sending succeeded.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.5,
@@ -619,7 +638,7 @@ class _AssetManagerAssignPageState
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _detail(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -629,7 +648,10 @@ class _AssetManagerAssignPageState
             width: 105,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: textMuted),
+              style: const TextStyle(
+                fontSize: 12,
+                color: textMuted,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -653,34 +675,30 @@ class _AssetManagerAssignPageState
 
     FocusScope.of(context).unfocus();
 
-    if (selectedAsset == null) {
-      _showMessage('Please select an available asset.');
+    final asset = selectedAsset;
+
+    if (asset == null) {
+      _message('Please select an available asset.');
       return;
     }
 
     if (!_formKey.currentState!.validate()) return;
 
-    final asset = selectedAssetData;
-    if (asset == null || asset['status'] != 'Available') {
-      _showMessage('This asset is not available. Refresh and try again.');
+    final token =
+        widget.userData?['access_token'] ?? widget.userData?['token'];
+
+    if (token == null || token.toString().trim().isEmpty) {
+      _message('Login session token missing. Please log in again.');
       return;
     }
-
-    final name = _employeeNameController.text.trim();
-    final email = _employeeEmailController.text.trim().toLowerCase();
-    final department = _departmentController.text.trim();
-    final description = _descriptionController.text.trim();
-
-    final token = widget.userData?['access_token'] ??
-        widget.userData?['token'];
 
     final payload = <String, dynamic>{
       'asset_code': asset['id'],
       'asset_name': asset['name'],
-      'employee_name': name,
-      'employee_email': email,
-      'department': department,
-      'description': description,
+      'employee_name': _nameController.text.trim(),
+      'employee_email': _emailController.text.trim().toLowerCase(),
+      'department': _departmentController.text.trim(),
+      'description': _descriptionController.text.trim(),
     };
 
     setState(() {
@@ -689,88 +707,85 @@ class _AssetManagerAssignPageState
     });
 
     try {
-      final uri = Uri.parse('$baseUrl/api/assets/assign');
-
-      debugPrint('ORGAFLOW ASSIGN: POST $uri');
-      debugPrint('ORGAFLOW ASSIGN: payload = ${jsonEncode(payload)}');
-
       final response = await http
           .post(
-            uri,
+            Uri.parse('$baseUrl/api/assets/assign'),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
-              if (token != null && token.toString().trim().isNotEmpty)
-                'Authorization': 'Bearer ${token.toString().trim()}',
+              'Authorization': 'Bearer ${token.toString().trim()}',
             },
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 12));
-
-      debugPrint('ORGAFLOW ASSIGN: status = ${response.statusCode}');
-      debugPrint('ORGAFLOW ASSIGN: response = ${response.body}');
+          .timeout(const Duration(seconds: 25));
 
       dynamic decoded;
+
       try {
         decoded = jsonDecode(response.body);
       } catch (_) {
         decoded = null;
       }
 
-      final Map<String, dynamic> responseData =
-          decoded is Map<String, dynamic> ? decoded : {};
+      final data = decoded is Map<String, dynamic>
+          ? decoded
+          : <String, dynamic>{};
 
       if (!mounted) return;
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        // Sirf server success par local UI status update hota hai.
+        final emailSent = data['email_sent'] == true;
+
         setState(() {
           asset['status'] = 'Assigned';
-          selectedAsset = null;
+          selectedAssetCode = null;
 
           lastAssignment = {
             ...payload,
-            'assignment_id': responseData['assignment_id'] ??
-                responseData['id'] ??
-                responseData['assignment_code'] ??
-                'Created',
-            'status': responseData['status'] ?? 'Assigned',
-            'assignment_date': responseData['assigned_at'] ??
-                responseData['created_at'] ??
-                DateTime.now().toLocal().toString().split('.').first,
+            'assignment_id': data['assignment_id'] ?? 'Created',
+            'status': data['status'] ?? 'Assigned',
+            'assigned_at': data['assigned_at'] ??
+                DateTime.now().toUtc().toIso8601String(),
+            'email_sent': emailSent,
+            'message': data['message'] ?? 'Assignment saved.',
           };
         });
 
-        _showMessage(
-          'Asset assignment saved successfully.',
-          isError: false,
+        _message(
+          emailSent
+              ? 'Assignment saved. Email sent to ${payload['employee_email']}.'
+              : 'Assignment saved, but email was not sent. Check SMTP settings.',
+          isError: !emailSent,
         );
       } else {
-        final detail = responseData['detail'] ??
-            responseData['message'] ??
-            response.body;
+        final detail =
+            data['detail'] ?? data['message'] ?? response.body;
 
-        _showMessage(
-          'Assignment failed (${response.statusCode}): '
-          '${detail.toString().length > 220 ? detail.toString().substring(0, 220) : detail}',
+        _message(
+          'Assignment failed (${response.statusCode}): $detail',
         );
       }
     } on TimeoutException {
-      if (!mounted) return;
-      _showMessage(
-        'Server response timed out. Check main.py, database and API logs.',
-      );
+      if (mounted) {
+        _message(
+          'Request timed out. Check backend and SMTP connection.',
+        );
+      }
     } on http.ClientException catch (error) {
-      if (!mounted) return;
-      debugPrint('ORGAFLOW ASSIGN connection error: $error');
-      _showMessage(
-        'Cannot reach backend. Check Base URL, Wi-Fi and server status.',
-      );
+      debugPrint('Asset assignment connection error: $error');
+
+      if (mounted) {
+        _message(
+          'Cannot reach backend. Check baseUrl and server status.',
+        );
+      }
     } catch (error, stackTrace) {
-      debugPrint('ORGAFLOW ASSIGN error: $error');
+      debugPrint('Asset assignment error: $error');
       debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-      _showMessage('Unexpected error: $error');
+
+      if (mounted) {
+        _message('Unexpected error: $error');
+      }
     } finally {
       if (mounted) {
         setState(() => isAssigning = false);
@@ -778,26 +793,42 @@ class _AssetManagerAssignPageState
     }
   }
 
-  Widget _buildConfirmation(Map<String, dynamic> data) {
+  Widget _confirmation(Map<String, dynamic> data) {
+    final emailSent = data['email_sent'] == true;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFBCE7D8)),
+        border: Border.all(
+          color: emailSent
+              ? const Color(0xFFBCE7D8)
+              : const Color(0xFFFFD6A5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle, color: success, size: 25),
-              SizedBox(width: 10),
+              Icon(
+                emailSent
+                    ? Icons.check_circle
+                    : Icons.warning_amber_rounded,
+                color: emailSent
+                    ? success
+                    : const Color(0xFFB54708),
+                size: 25,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Assignment Confirmation',
-                  style: TextStyle(
-                    fontSize: 17,
+                  emailSent
+                      ? 'Assignment Confirmed'
+                      : 'Assignment Saved — Email Pending',
+                  style: const TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -805,48 +836,39 @@ class _AssetManagerAssignPageState
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'The server accepted the request. Saved details:',
-            style: TextStyle(fontSize: 12, color: textMuted),
+          Text(
+            '${data['message']}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: textMuted,
+              height: 1.4,
+            ),
           ),
           const Divider(height: 25),
-          _detailRow('Assignment ID', '${data['assignment_id']}'),
-          _detailRow('Asset ID', '${data['asset_code']}'),
-          _detailRow('Asset Name', '${data['asset_name']}'),
-          _detailRow('Employee', '${data['employee_name']}'),
-          _detailRow('Email', '${data['employee_email']}'),
-          _detailRow('Department', '${data['department']}'),
-          _detailRow('Description', '${data['description']}'),
-          _detailRow('Status', '${data['status']}'),
-          _detailRow('Assigned At', '${data['assignment_date']}'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () {
-              final details = data.entries
-                  .map((entry) => '${entry.key}: ${entry.value}')
-                  .join('\n');
-              debugPrint('ORGAFLOW ASSIGNMENT DETAILS\n$details');
-              _showMessage('Assignment details printed in Debug Console.',
-                  isError: false);
-            },
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('View Details in Debug Log'),
-          ),
+          _detail('Assignment ID', '${data['assignment_id']}'),
+          _detail('Asset ID', '${data['asset_code']}'),
+          _detail('Asset Name', '${data['asset_name']}'),
+          _detail('Employee', '${data['employee_name']}'),
+          _detail('Email', '${data['employee_email']}'),
+          _detail('Department', '${data['department']}'),
+          _detail('Description', '${data['description']}'),
+          _detail('Status', '${data['status']}'),
+          _detail('Assigned At', '${data['assigned_at']}'),
+          _detail('Email Sent', emailSent ? 'Yes' : 'No'),
         ],
       ),
     );
   }
 
-  void _showMessage(String message, {bool isError = true}) {
+  void _message(String message, {bool isError = true}) {
     if (!mounted) return;
 
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
+    ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? const Color(0xFFB42318) : success,
+          backgroundColor: isError ? danger : success,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
         ),
