@@ -621,17 +621,8 @@ class _AssetManagerAssignPageState extends State<AssetManagerAssignPage> {
             size: 21,
           ),
           SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'The backend saves the assignment in PostgreSQL and attempts '
-              'to send an email. SMTP must be configured on the server. '
-              'The confirmation will show whether email sending succeeded.',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                color: Color(0xFF34456D),
-              ),
-            ),
+         Expanded(child: Text(
+         'After confirming the assignment, an email notification will be sent to the employee with the asset details and instructions.',),
           ),
         ],
       ),
