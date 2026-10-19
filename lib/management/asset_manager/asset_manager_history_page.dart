@@ -1,3 +1,5 @@
+
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -18,301 +20,576 @@ class AssetManagerHistoryPage extends StatefulWidget {
 
 class _AssetManagerHistoryPageState
     extends State<AssetManagerHistoryPage> {
-  static const Color primary = Color(0xFF3157D5);
-  static const Color background = Color(0xFFF5F7FC);
-  static const Color textDark = Color(0xFF172033);
-  static const Color textMuted = Color(0xFF758096);
-  static const Color borderColor = Color(0xFFE7EBF3);
+  static const Color primary = Color(0xFF3B5BDB);
+  static const Color background = Color(0xFFF4F6FB);
+  static const Color ink = Color(0xFF172033);
+  static const Color muted = Color(0xFF64748B);
+  static const Color border = Color(0xFFE7EBF3);
 
+  bool loading = false;
+  String? error;
+  String search = '';
   String selectedFilter = 'All';
 
-  List<Map<String, dynamic>> history = [];
+  List<Map<String, dynamic>> assets = [];
+  List<Map<String, dynamic>> assignments = [];
+  List<Map<String, dynamic>> logs = [];
 
-  bool isLoading = true;
-  String? errorMessage;
+  // Set baseUrl in userData to override this default.
+  String get baseUrl {
+    final value = widget.userData?['baseUrl'] ??
+        widget.userData?['apiBaseUrl'] ??
+        widget.userData?['api_base_url'] ??
+        'http://127.0.0.1:8000';
 
-  @override
-  void initState() {
-    super.initState();
-    _refreshHistory();
+    return value.toString().trim().replaceAll(RegExp(r'/+$'), '');
   }
 
-  String get _baseUrl {
-    // Use the same base URL configuration as your other API screens.
-    return (widget.userData?['http://127.0.0.1:8000'] ??
-            widget.userData?['http://127.0.0.1:8000'] ??
-            '')
-        .toString()
-        .replaceAll(RegExp(r'/+$'), '');
-  }
-
-  String get _token {
+  String get token {
     return (widget.userData?['token'] ??
             widget.userData?['access_token'] ??
             widget.userData?['accessToken'] ??
             '')
-        .toString();
+        .toString()
+        .trim();
   }
 
-  String get _managerName {
-    return (widget.userData?['name'] ??
-            widget.userData?['full_name'] ??
-            'Asset Manager')
-        .toString();
+  @override
+  void initState() {
+    super.initState();
+    loadDashboard();
   }
 
-  Future<void> _refreshHistory() async {
-    if (_baseUrl.isEmpty) {
-      setState(() {
-        isLoading = false;
-        errorMessage =
-            'API base URL missing. Configure baseUrl in userData.';
-      });
-      return;
+  // Supports APIs that return a list directly or inside a named key.
+  List<Map<String, dynamic>> extractList(
+    dynamic data,
+    List<String> keys,
+  ) {
+    dynamic value = data;
+
+    if (data is Map) {
+      for (final key in keys) {
+        if (data[key] is List) {
+          value = data[key];
+          break;
+        }
+      }
     }
 
-    if (_token.isEmpty) {
-      setState(() {
-        isLoading = false;
-        errorMessage =
-            'Authentication token missing. Please log in again.';
-      });
-      return;
+    if (value is! List) return [];
+
+    return value
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getList(
+    String path,
+    List<String> keys,
+  ) async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl$path'),
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpExceptionMessage(
+        'GET $path failed (${response.statusCode})',
+        response.statusCode,
+      );
     }
+
+    final decoded = jsonDecode(response.body);
+    return extractList(decoded, keys);
+  }
+
+  Future<void> loadDashboard() async {
+    if (!mounted) return;
 
     setState(() {
-      isLoading = true;
-      errorMessage = null;
+      loading = true;
+      error = null;
     });
 
+    if (token.isEmpty) {
+      setState(() {
+        loading = false;
+        error = 'Login token missing. Please log in again.';
+      });
+      return;
+    }
+
+    // Each endpoint is loaded independently, so one unavailable
+    // endpoint does not prevent other dashboard data from appearing.
+    final results = await Future.wait([
+      _safeLoad('/api/assets', ['assets', 'items', 'data']),
+      _safeLoad(
+        '/api/assets/assignments',
+        ['assignments', 'items', 'data', 'requests'],
+      ),
+      _safeLoad(
+        '/api/audit-logs',
+        ['logs', 'items', 'history', 'activities'],
+      ),
+    ]);
+
+    if (!mounted) return;
+
+    setState(() {
+      assets = results[0].data;
+      assignments = results[1].data;
+      logs = results[2].data;
+      loading = false;
+
+      final failures = results.where((r) => r.error != null).toList();
+      if (failures.length == results.length) {
+        error = failures.first.error;
+      } else if (failures.isNotEmpty) {
+        error = 'Some data could not be loaded. Check your API routes '
+            'and permissions.';
+      }
+    });
+  }
+
+  Future<_LoadResult> _safeLoad(
+    String path,
+    List<String> keys,
+  ) async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$_baseUrl/api/asset-manager/history'),
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $_token',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
-
-      if (response.statusCode == 401 ||
-          response.statusCode == 403) {
-        throw Exception(
-          'Access denied. Please log in again or check your manager permissions.',
-        );
-      }
-
-      if (response.statusCode != 200) {
-        throw Exception(
-          'Server returned ${response.statusCode}. '
-          'Check whether the history API endpoint exists.',
-        );
-      }
-
-      final decoded = jsonDecode(response.body);
-
-      // Supported responses:
-      // {"items": [...]}
-      // {"history": [...]}
-      // {"activities": [...]}
-      // [...]
-      final dynamic rawItems = decoded is List
-          ? decoded
-          : decoded is Map
-              ? decoded['items'] ??
-                  decoded['history'] ??
-                  decoded['activities']
-              : null;
-
-      if (rawItems is! List) {
-        throw const FormatException(
-          'Unexpected history API response format.',
-        );
-      }
-
-      final records = rawItems
-          .whereType<Map>()
-          .map(
-            (item) => Map<String, dynamic>.from(item),
-          )
-          .where(_belongsToCurrentManager)
-          .toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        history = records;
-        isLoading = false;
-      });
+      return _LoadResult(
+        data: await getList(path, keys),
+      );
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-        errorMessage = e
-            .toString()
-            .replaceFirst('Exception: ', '');
-      });
+      return _LoadResult(
+        data: [],
+        error: e.toString(),
+      );
     }
   }
 
-  // The backend should return manager-scoped audit records.
-  // Never count activities performed by another manager.
-  bool _belongsToCurrentManager(
-    Map<String, dynamic> item,
-  ) {
-    final managerId =
-        widget.userData?['id']?.toString() ??
-        widget.userData?['user_id']?.toString();
-
-    final recordedManagerId =
-        item['performed_by_id']?.toString() ??
-        item['reviewed_by_id']?.toString() ??
-        item['actor_id']?.toString();
-
-    if (managerId != null && recordedManagerId != null) {
-      return managerId == recordedManagerId;
-    }
-
-    final recordedName =
-        item['performed_by']?.toString() ??
-        item['reviewed_by']?.toString() ??
-        item['actor_name']?.toString();
-
-    // Name matching is only a fallback for APIs without actor IDs.
-    // Prefer immutable manager IDs in production.
-    return recordedName != null &&
-        recordedName.trim().toLowerCase() ==
-            _managerName.trim().toLowerCase();
+  String str(dynamic value, {String fallback = ''}) {
+    if (value == null) return fallback;
+    final result = value.toString().trim();
+    return result.isEmpty ? fallback : result;
   }
 
-  String _value(
+  String firstValue(
     Map<String, dynamic> item,
     List<String> keys, {
-    String fallback = '-',
+    String fallback = '',
   }) {
     for (final key in keys) {
       final value = item[key];
-
-      if (value != null &&
-          value.toString().trim().isNotEmpty) {
-        return value.toString();
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
       }
     }
-
     return fallback;
   }
 
-  String _status(Map<String, dynamic> item) {
-    final raw = _value(
+  String statusOf(Map<String, dynamic> item) {
+    return firstValue(
       item,
-      ['status', 'decision', 'action_type', 'action'],
-      fallback: '',
-    ).toLowerCase();
-
-    if (raw.contains('reject') ||
-        raw == 'denied' ||
-        raw == 'declined') {
-      return 'Rejected';
-    }
-
-    if (raw.contains('approv') ||
-        raw == 'accepted') {
-      return 'Approved';
-    }
-
-    return 'Other';
+      [
+        'status',
+        'asset_status',
+        'request_status',
+        'approval_status',
+        'maintenance_status',
+        'state',
+      ],
+      fallback: 'unknown',
+    ).toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ');
   }
 
-  String _activityType(Map<String, dynamic> item) {
-    final raw = _value(
-      item,
-      ['type', 'activity_type', 'action_type', 'action'],
-      fallback: '',
-    ).toLowerCase();
-
-    if (raw.contains('approv') ||
-        raw.contains('reject') ||
-        raw.contains('request')) {
-      return 'Request';
-    }
-    if (raw.contains('assign')) return 'Assignment';
-    if (raw.contains('return')) return 'Return';
-    if (raw.contains('mainten')) return 'Maintenance';
-    if (raw.contains('transfer')) return 'Transfer';
-    if (raw.contains('creat') || raw.contains('add')) {
-      return 'Created';
-    }
-
-    return 'Other';
+  bool hasStatus(
+    Map<String, dynamic> item,
+    List<String> words,
+  ) {
+    final status = statusOf(item);
+    return words.any((word) => status.contains(word));
   }
 
-  int get totalActivities => history.length;
+  bool isApproved(Map<String, dynamic> item) =>
+      hasStatus(item, ['approved', 'accepted']);
 
-  int get approvedCount => history
-      .where((item) => _status(item) == 'Approved')
-      .length;
+  bool isPending(Map<String, dynamic> item) =>
+      hasStatus(item, ['pending', 'awaiting', 'requested', 'in review']);
 
-  int get rejectedCount => history
-      .where((item) => _status(item) == 'Rejected')
-      .length;
+  bool isRejected(Map<String, dynamic> item) =>
+      hasStatus(item, ['rejected', 'declined', 'denied']);
 
-  List<Map<String, dynamic>> get filteredHistory {
-    if (selectedFilter == 'All') return history;
+  bool isMaintenance(Map<String, dynamic> item) {
+    final status = statusOf(item);
+    return status.contains('maintenance') ||
+        status.contains('under repair') ||
+        status.contains('repairing');
+  }
 
-    if (selectedFilter == 'Approved' ||
-        selectedFilter == 'Rejected') {
-      return history
-          .where(
-            (item) => _status(item) == selectedFilter,
-          )
-          .toList();
+  bool isAssigned(Map<String, dynamic> item) {
+    final status = statusOf(item);
+    return status.contains('assigned') ||
+        status.contains('in use') ||
+        status.contains('issued');
+  }
+
+  bool isAvailable(Map<String, dynamic> item) {
+    final status = statusOf(item);
+    return status.contains('available') ||
+        status.contains('in stock') ||
+        status == 'active';
+  }
+
+  bool isCompleted(Map<String, dynamic> item) {
+    final status = statusOf(item);
+    return status.contains('completed') ||
+        status.contains('resolved') ||
+        status.contains('finished');
+  }
+
+  bool actionMatches(Map<String, dynamic> item, List<String> words) {
+    final action = firstValue(
+      item,
+      ['action', 'event', 'type', 'details', 'description'],
+    ).toLowerCase();
+
+    return words.any((word) => action.contains(word));
+  }
+
+  int get totalAssets => assets.length;
+
+  int get assignedAssets {
+    final ids = <String>{};
+
+    for (final a in assets) {
+      if (isAssigned(a)) {
+        ids.add(assetIdentity(a));
+      }
     }
 
-    return history
-        .where(
-          (item) => _activityType(item) == selectedFilter,
-        )
-        .toList();
+    for (final a in assignments) {
+      if (isAssigned(a)) {
+        ids.add(assetIdentity(a));
+      }
+    }
+
+    ids.remove('');
+    return ids.length;
+  }
+
+  String assetIdentity(Map<String, dynamic> item) {
+    return firstValue(
+      item,
+      ['asset_id', 'assetId', 'asset_code', 'asset_code_id', 'id'],
+    );
+  }
+
+  int get approvedCount => assignments.where(isApproved).length;
+  int get pendingCount => assignments.where(isPending).length;
+  int get rejectedCount => assignments.where(isRejected).length;
+
+  int get maintenanceCount {
+    final ids = <String>{};
+
+    for (final item in assets.where(isMaintenance)) {
+      ids.add(assetIdentity(item));
+    }
+
+    ids.remove('');
+    return ids.isNotEmpty
+        ? ids.length
+        : assets.where(isMaintenance).length;
+  }
+
+  int get availableCount => assets.where(isAvailable).length;
+
+  int get completedMaintenanceCount => logs.where((item) {
+        return actionMatches(item, ['maintenance']) &&
+            (isCompleted(item) ||
+                actionMatches(item, [
+                  'completed',
+                  'resolved',
+                  'maintenance_complete',
+                ]));
+      }).length;
+
+  int get transferCount => logs
+      .where((item) => actionMatches(item, ['transfer']))
+      .length;
+
+  int get assignmentActivityCount => logs
+      .where((item) => actionMatches(item, ['assign']))
+      .length;
+
+  int get creationCount => logs
+      .where((item) => actionMatches(item, ['create', 'asset added']))
+      .length;
+
+  DateTime dateOf(Map<String, dynamic> item) {
+    final value = firstValue(
+      item,
+      ['created_at', 'timestamp', 'date', 'updated_at'],
+    );
+
+    return DateTime.tryParse(value)?.toLocal() ??
+        DateTime(2000);
+  }
+
+  String formatDate(Map<String, dynamic> item) {
+    final date = dateOf(item);
+    if (date.year == 2000) return 'Date unavailable';
+
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${date.day.toString().padLeft(2, '0')} '
+        '${monthName(date.month)} ${date.year}, $hour:$minute $period';
+  }
+
+  String monthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return months[month - 1];
+  }
+
+  String actorOf(Map<String, dynamic> item) {
+    return firstValue(
+      item,
+      [
+        'actor_name',
+        'performed_by',
+        'reviewed_by',
+        'user_name',
+        'actor_email',
+        'email',
+      ],
+      fallback: 'System user',
+    );
+  }
+
+  String titleOf(Map<String, dynamic> item) {
+    final raw = firstValue(
+      item,
+      ['action', 'event', 'type'],
+      fallback: 'Activity recorded',
+    );
+
+    return raw
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) =>
+            '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
+        .join(' ');
+  }
+
+  String descriptionOf(Map<String, dynamic> item) {
+    final value = item['details'] ??
+        item['description'] ??
+        item['message'];
+
+    if (value == null) {
+      return 'An activity was recorded in the system.';
+    }
+
+    if (value is Map || value is List) {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    }
+
+    final textValue = value.toString().trim();
+
+    try {
+      final decoded = jsonDecode(textValue);
+      if (decoded is Map || decoded is List) {
+        return const JsonEncoder.withIndent('  ').convert(decoded);
+      }
+    } catch (_) {}
+
+    return textValue.isEmpty
+        ? 'An activity was recorded in the system.'
+        : textValue;
+  }
+
+  IconData iconFor(String value) {
+    final s = value.toLowerCase();
+    if (s.contains('approve')) return Icons.check_circle_outline_rounded;
+    if (s.contains('reject')) return Icons.cancel_outlined;
+    if (s.contains('maintenance') || s.contains('repair')) {
+      return Icons.build_circle_outlined;
+    }
+    if (s.contains('transfer')) return Icons.swap_horiz_rounded;
+    if (s.contains('assign')) return Icons.assignment_ind_outlined;
+    if (s.contains('delete')) return Icons.delete_outline_rounded;
+    if (s.contains('create') || s.contains('add')) {
+      return Icons.add_box_outlined;
+    }
+    if (s.contains('update') || s.contains('edit')) {
+      return Icons.edit_note_rounded;
+    }
+    return Icons.history_rounded;
+  }
+
+  Color colorFor(String value) {
+    final s = value.toLowerCase();
+    if (s.contains('reject') || s.contains('delete')) {
+      return const Color(0xFFDC2626);
+    }
+    if (s.contains('approve') || s.contains('complete')) {
+      return const Color(0xFF059669);
+    }
+    if (s.contains('maintenance') || s.contains('repair')) {
+      return const Color(0xFFD97706);
+    }
+    if (s.contains('transfer') || s.contains('assign')) {
+      return const Color(0xFF7C3AED);
+    }
+    return primary;
+  }
+
+  List<Map<String, dynamic>> get visibleLogs {
+    final query = search.trim().toLowerCase();
+
+    final sorted = [...logs]
+      ..sort((a, b) => dateOf(b).compareTo(dateOf(a)));
+
+    return sorted.where((item) {
+      final title = titleOf(item).toLowerCase();
+      final details = descriptionOf(item).toLowerCase();
+      final actor = actorOf(item).toLowerCase();
+      final matchesSearch = query.isEmpty ||
+          title.contains(query) ||
+          details.contains(query) ||
+          actor.contains(query);
+
+      final action = firstValue(
+        item,
+        ['action', 'event', 'type', 'details'],
+      ).toLowerCase();
+
+      final matchesFilter = switch (selectedFilter) {
+        'Approvals' => action.contains('approv'),
+        'Rejections' => action.contains('reject'),
+        'Maintenance' => action.contains('maintenance') ||
+            action.contains('repair'),
+        'Transfers' => action.contains('transfer'),
+        'Assignments' => action.contains('assign'),
+        _ => true,
+      };
+
+      return matchesSearch && matchesFilter;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: background,
-      body: SafeArea(
-        child: Column(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: ink,
+        elevation: 0,
+        title: const Text(
+          'Asset Manager History',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: loading ? null : loadDashboard,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: loadDashboard,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(18),
           children: [
-            _buildHeader(),
-            Expanded(
-              child: RefreshIndicator(
-                color: primary,
-                onRefresh: _refreshHistory,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
-                    16, 16, 16, 28,
-                  ),
-                  children: [
-                    _buildWelcomeCard(),
-                    const SizedBox(height: 18),
-                    _buildSummary(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader(),
-                    const SizedBox(height: 12),
-                    _buildFilters(),
-                    const SizedBox(height: 16),
-                    if (isLoading)
-                      _buildLoading()
-                    else if (errorMessage != null)
-                      _buildError()
-                    else if (filteredHistory.isEmpty)
-                      _buildEmptyState()
-                    else
-                      ...filteredHistory.map(_historyCard),
-                  ],
+            _hero(),
+            const SizedBox(height: 20),
+            if (error != null) _warning(error!),
+            if (loading && assets.isEmpty && logs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(30),
+                child: Center(
+                  child: CircularProgressIndicator(color: primary),
                 ),
+              )
+            else ...[
+              _sectionTitle('Asset Overview', 'Live counts from API data'),
+              const SizedBox(height: 12),
+              _metricGrid([
+                _Metric('Total Assets', totalAssets, Icons.inventory_2_outlined,
+                    primary),
+                _Metric('Assigned Assets', assignedAssets,
+                    Icons.assignment_ind_outlined, const Color(0xFF7C3AED)),
+                _Metric('Available', availableCount,
+                    Icons.check_circle_outline, const Color(0xFF059669)),
+                _Metric('Under Maintenance', maintenanceCount,
+                    Icons.build_circle_outlined, const Color(0xFFD97706)),
+              ]),
+              const SizedBox(height: 24),
+              _sectionTitle('Requests & Approvals', 'Request status summary'),
+              const SizedBox(height: 12),
+              _metricGrid([
+                _Metric('Approved', approvedCount,
+                    Icons.verified_outlined, const Color(0xFF059669)),
+                _Metric('Pending', pendingCount,
+                    Icons.hourglass_top_rounded, const Color(0xFFD97706)),
+                _Metric('Rejected', rejectedCount,
+                    Icons.cancel_outlined, const Color(0xFFDC2626)),
+                _Metric('Assignments', assignmentActivityCount,
+                    Icons.assignment_turned_in_outlined,
+                    const Color(0xFF7C3AED)),
+              ]),
+              const SizedBox(height: 24),
+              _sectionTitle('Maintenance & Transfers', 'Recorded operations'),
+              const SizedBox(height: 12),
+              _metricGrid([
+                _Metric('Maintenance Assets', maintenanceCount,
+                    Icons.home_repair_service_outlined,
+                    const Color(0xFFD97706)),
+                _Metric('Maintenance Completed', completedMaintenanceCount,
+                    Icons.task_alt_rounded, const Color(0xFF059669)),
+                _Metric('Transfers Recorded', transferCount,
+                    Icons.swap_horiz_rounded, const Color(0xFF2563EB)),
+                _Metric('Assets Created (Logs)', creationCount,
+                    Icons.add_box_outlined, const Color(0xFF0D9488)),
+              ]),
+              const SizedBox(height: 24),
+              _sectionTitle('Asset Status Breakdown', 'Current asset records'),
+              const SizedBox(height: 12),
+              _statusBreakdown(),
+              const SizedBox(height: 26),
+              _sectionTitle('Complete Activity History',
+                  '${visibleLogs.length} recorded activities'),
+              const SizedBox(height: 12),
+              _searchBox(),
+              const SizedBox(height: 12),
+              _filterBar(),
+              const SizedBox(height: 16),
+              if (visibleLogs.isEmpty)
+                _emptyState()
+              else
+                ...visibleLogs.map(_activityCard),
+            ],
+            const SizedBox(height: 24),
+            const Center(
+              child: Text(
+                'Orgaflow • Asset Management System',
+                style: TextStyle(fontSize: 11, color: muted),
               ),
             ),
           ],
@@ -321,328 +598,282 @@ class _AssetManagerHistoryPageState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _hero() {
+    final managerName = firstValue(
+      widget.userData ?? {},
+      ['name', 'full_name', 'username', 'email'],
+      fallback: 'Asset Manager',
+    );
+
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(18, 15, 12, 15),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF304CCB), Color(0xFF7087F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
       child: Row(
         children: [
           Container(
-            height: 46,
-            width: 46,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: const Color(0xFFE9EEFF),
-              borderRadius: BorderRadius.circular(15),
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.history_rounded,
-              color: primary,
-              size: 25,
+              Icons.dashboard_customize_rounded,
+              color: Colors.white,
+              size: 29,
             ),
           ),
-          const SizedBox(width: 12),
-          const Expanded(
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Activity History',
+                const Text(
+                  'Asset Control Center',
                   style: TextStyle(
-                    fontSize: 19,
+                    color: Colors.white,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: textDark,
                   ),
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 5),
                 Text(
-                  'Your asset management records',
-                  style: TextStyle(
+                  'Welcome, $managerName',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
                     fontSize: 12,
-                    color: textMuted,
                   ),
                 ),
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Refresh records',
-            onPressed: isLoading ? null : _refreshHistory,
-            icon: const Icon(
-              Icons.refresh_rounded,
-              color: primary,
-            ),
-          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.shield_outlined, color: Colors.white, size: 27),
         ],
       ),
     );
   }
 
-  Widget _buildWelcomeCard() {
-    return Container(
-      padding: const EdgeInsets.all(19),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF3157D5),
-            Color(0xFF5577EA),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: 0.16),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+  Widget _sectionTitle(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: ink,
           ),
-        ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 11, color: muted),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricGrid(List<_Metric> metrics) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 4
+            : constraints.maxWidth >= 520
+                ? 2
+                : 2;
+
+        final width =
+            (constraints.maxWidth - (columns - 1) * 12) / columns;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: metrics
+              .map((metric) => SizedBox(
+                    width: width,
+                    child: _metricCard(metric),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _metricCard(_Metric metric) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 132),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Manager Overview',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.insights_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ],
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: metric.color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(metric.icon, color: metric.color, size: 21),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 13),
           Text(
-            'Welcome, $_managerName',
+            '${metric.value}',
             style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              color: ink,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           Text(
-            'Track the requests you reviewed and your recorded asset activities.',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 12,
-              height: 1.5,
+            metric.label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+              color: muted,
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(
-                Icons.verified_user_outlined,
-                size: 15,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Counts are based on records returned by the server.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummary() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Request decisions',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _summaryCard(
-                title: 'Total Activities',
-                value: totalActivities,
-                icon: Icons.timeline_rounded,
-                color: primary,
-                background: const Color(0xFFE9EEFF),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _summaryCard(
-                title: 'Approved',
-                value: approvedCount,
-                icon: Icons.check_circle_outline_rounded,
-                color: const Color(0xFF15803D),
-                background: const Color(0xFFE8F7EE),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _summaryCard(
-                title: 'Rejected',
-                value: rejectedCount,
-                icon: Icons.cancel_outlined,
-                color: const Color(0xFFDC4545),
-                background: const Color(0xFFFFEEEE),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget _statusBreakdown() {
+    final rows = <(String, int, Color)>[
+      ('Available', availableCount, const Color(0xFF059669)),
+      ('Assigned / In Use', assignedAssets, const Color(0xFF7C3AED)),
+      ('Under Maintenance', maintenanceCount, const Color(0xFFD97706)),
+    ];
 
-  Widget _summaryCard({
-    required String title,
-    required int value,
-    required IconData icon,
-    required Color color,
-    required Color background,
-  }) {
+    final denominator = totalAssets == 0 ? 1 : totalAssets;
+
     return Container(
-      constraints: const BoxConstraints(minHeight: 125),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 13,
-      ),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 36,
-            width: 36,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(11),
+        children: rows.map((row) {
+          final ratio = (row.$2 / denominator).clamp(0.0, 1.0);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        row.$1,
+                        style: const TextStyle(
+                          color: ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${row.$2}',
+                      style: TextStyle(
+                        color: row.$3,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFEEF1F6),
+                    valueColor: AlwaysStoppedAnimation<Color>(row.$3),
+                  ),
+                ),
+              ],
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            isLoading ? '—' : '$value',
-            style: const TextStyle(
-              color: textDark,
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            style: const TextStyle(
-              color: textMuted,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildSectionHeader() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Text(
-            'Recent Activities',
-            style: TextStyle(
-              color: textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+  Widget _searchBox() {
+    return TextField(
+      onChanged: (value) => setState(() => search = value),
+      decoration: InputDecoration(
+        hintText: 'Search action, details or user...',
+        prefixIcon: const Icon(Icons.search_rounded),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border),
         ),
-        Text(
-          isLoading ? 'Loading...' : '${filteredHistory.length} records',
-          style: const TextStyle(
-            color: textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildFilters() {
+  Widget _filterBar() {
     const filters = [
       'All',
-      'Approved',
-      'Rejected',
-      'Assignment',
-      'Return',
+      'Approvals',
+      'Rejections',
       'Maintenance',
-      'Transfer',
-      'Created',
-      'Request',
+      'Transfers',
+      'Assignments',
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: filters.map((filter) {
-          final selected = selectedFilter == filter;
+          final active = selectedFilter == filter;
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
               label: Text(filter),
-              selected: selected,
-              onSelected: (_) {
-                setState(() => selectedFilter = filter);
-              },
-              selectedColor: primary,
+              selected: active,
+              onSelected: (_) =>
+                  setState(() => selectedFilter = filter),
+              selectedColor: primary.withOpacity(0.13),
               backgroundColor: Colors.white,
               side: BorderSide(
-                color: selected ? primary : borderColor,
+                color: active ? primary : border,
               ),
               labelStyle: TextStyle(
-                color: selected ? Colors.white : textDark,
+                color: active ? primary : muted,
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 5,
-                vertical: 5,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
           );
@@ -651,547 +882,178 @@ class _AssetManagerHistoryPageState
     );
   }
 
-  Widget _historyCard(Map<String, dynamic> item) {
-    final status = _status(item);
-    final type = _activityType(item);
-
-    final action = _value(
-      item,
-      ['action', 'activity', 'action_type', 'type'],
-      fallback: status == 'Other' ? type : '$status Request',
-    );
-
-    final asset = _value(
-      item,
-      ['asset_name', 'asset', 'item_name'],
-      fallback: 'Asset not specified',
-    );
-
-    final assetId = _value(
-      item,
-      ['asset_id', 'asset_code', 'asset_tag'],
-    );
-
-    final employee = _value(
-      item,
-      ['employee_name', 'employee', 'requester_name', 'user_name'],
-    );
-
-    final date = _value(
-      item,
-      ['created_at', 'reviewed_at', 'timestamp', 'date'],
-    );
-
-    final description = _value(
-      item,
-      ['description', 'remarks', 'reason', 'comments'],
-      fallback: 'No description available.',
-    );
-
-    final decision = status == 'Approved'
-        ? const Color(0xFF15803D)
-        : status == 'Rejected'
-            ? const Color(0xFFDC4545)
-            : primary;
-
-    final decisionBackground = status == 'Approved'
-        ? const Color(0xFFE8F7EE)
-        : status == 'Rejected'
-            ? const Color(0xFFFFEEEE)
-            : const Color(0xFFE9EEFF);
+  Widget _activityCard(Map<String, dynamic> item) {
+    final title = titleOf(item);
+    final color = colorFor(title);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: border),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _showDetails(
-          item: item,
-          action: action,
-          asset: asset,
-          assetId: assetId,
-          employee: employee,
-          date: date,
-          description: description,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _activityIcon(type, status),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          action,
-                          style: const TextStyle(
-                            color: textDark,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          asset,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  if (status != 'Other')
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: decisionBackground,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: decision,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 13),
-              const Divider(height: 1, color: borderColor),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline_rounded,
-                    size: 15,
-                    color: textMuted,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      employee,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 14,
-                    color: textMuted,
-                  ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      assetId,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.schedule_rounded,
-                    size: 14,
-                    color: textMuted,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      date,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const Text(
-                    'View details',
-                    style: TextStyle(
-                      color: primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: 17,
-                    color: primary,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _activityIcon(String type, String status) {
-    IconData icon;
-    Color color;
-    Color bg;
-
-    if (status == 'Approved') {
-      icon = Icons.check_circle_outline_rounded;
-      color = const Color(0xFF15803D);
-      bg = const Color(0xFFE8F7EE);
-    } else if (status == 'Rejected') {
-      icon = Icons.cancel_outlined;
-      color = const Color(0xFFDC4545);
-      bg = const Color(0xFFFFEEEE);
-    } else {
-      switch (type) {
-        case 'Assignment':
-          icon = Icons.person_add_alt_1_rounded;
-          color = const Color(0xFF15803D);
-          bg = const Color(0xFFE8F7EE);
-          break;
-        case 'Return':
-          icon = Icons.assignment_return_outlined;
-          color = Colors.orange;
-          bg = const Color(0xFFFFF4E5);
-          break;
-        case 'Maintenance':
-          icon = Icons.build_outlined;
-          color = Colors.deepOrange;
-          bg = const Color(0xFFFFEDE3);
-          break;
-        case 'Transfer':
-          icon = Icons.swap_horiz_rounded;
-          color = Colors.purple;
-          bg = const Color(0xFFF1E8FF);
-          break;
-        case 'Created':
-          icon = Icons.add_box_outlined;
-          color = Colors.teal;
-          bg = const Color(0xFFE5F7F5);
-          break;
-        default:
-          icon = Icons.history_rounded;
-          color = primary;
-          bg = const Color(0xFFE9EEFF);
-      }
-    }
-
-    return Container(
-      height: 45,
-      width: 45,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Icon(icon, color: color, size: 22),
-    );
-  }
-
-  Widget _buildLoading() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 50),
-      child: Center(
-        child: Column(
-          children: [
-            CircularProgressIndicator(color: primary),
-            SizedBox(height: 15),
-            Text(
-              'Fetching real activity records...',
-              style: TextStyle(color: textMuted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildError() {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.cloud_off_rounded,
-            size: 42,
-            color: Color(0xFFDC4545),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Could not load history',
-            style: TextStyle(
-              color: textDark,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            errorMessage ?? 'Something went wrong.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: textMuted,
-              fontSize: 12,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _refreshHistory,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try again'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 22,
-        vertical: 35,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 70,
-            width: 70,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE9EEFF),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: const Icon(
-              Icons.history_toggle_off_rounded,
-              size: 35,
-              color: primary,
-            ),
-          ),
-          const SizedBox(height: 15),
-          const Text(
-            'No activities found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: textDark,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            selectedFilter == 'All'
-                ? 'Your recorded activities will appear here when available.'
-                : 'No records match the "$selectedFilter" filter.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: textMuted,
-              fontSize: 12,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDetails({
-    required Map<String, dynamic> item,
-    required String action,
-    required String asset,
-    required String assetId,
-    required String employee,
-    required String date,
-    required String description,
-  }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(25),
-        ),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      height: 4,
-                      width: 42,
-                      decoration: BoxDecoration(
-                        color: borderColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Activity Details',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: textDark,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _detailRow(
-                    'Activity ID',
-                    _value(item, ['id', 'activity_id', 'request_id']),
-                  ),
-                  _detailRow('Action', action),
-                  _detailRow('Asset', asset),
-                  _detailRow('Asset ID', assetId),
-                  _detailRow('Employee', employee),
-                  _detailRow(
-                    'Performed by',
-                    _value(
-                      item,
-                      ['performed_by', 'reviewed_by', 'actor_name'],
-                    ),
-                  ),
-                  _detailRow('Date / Time', date),
-                  _detailRow('Status', _status(item)),
-                  _detailRow(
-                    'Decision reason',
-                    _value(
-                      item,
-                      ['rejection_reason', 'remarks', 'reason'],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: background,
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Text(
-                      description,
-                      style: const TextStyle(
-                        color: textMuted,
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(sheetContext),
-                      child: const Text('Close'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _detailRow(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 13),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: textMuted,
-              ),
+          Container(
+            width: 43,
+            height: 43,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(13),
             ),
+            child: Icon(iconFor(title), color: color, size: 22),
           ),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 12,
-                color: textDark,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  descriptionOf(item),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  children: [
+                    _smallMeta(Icons.person_outline, actorOf(item)),
+                    _smallMeta(Icons.schedule_rounded, formatDate(item)),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _smallMeta(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: muted),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 190),
+          child: Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: muted),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _warning(String message) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: Color(0xFFB45309)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF92400E),
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: loading ? null : loadDashboard,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.history_rounded, size: 46, color: Color(0xFF94A3B8)),
+          SizedBox(height: 12),
+          Text(
+            'No matching activities',
+            style: TextStyle(
+              fontSize: 15,
+              color: ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Activities will appear here when the backend records them.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: muted, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Metric {
+  final String label;
+  final int value;
+  final IconData icon;
+  final Color color;
+
+  const _Metric(this.label, this.value, this.icon, this.color);
+}
+
+class _LoadResult {
+  final List<Map<String, dynamic>> data;
+  final String? error;
+
+  const _LoadResult({
+    required this.data,
+    this.error,
+  });
+}
+
+class HttpExceptionMessage implements Exception {
+  final String message;
+  final int statusCode;
+
+  const HttpExceptionMessage(this.message, this.statusCode);
+
+  @override
+  String toString() => message;
 }
