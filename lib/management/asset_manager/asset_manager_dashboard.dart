@@ -1,1235 +1,947 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
-import 'asset_manager_assets_page.dart' as assets;
-import 'asset_manager_requests_page.dart' as requests;
-import 'asset_manager_assign_page.dart' as assign;
-import 'asset_manager_transfer_page.dart' as transfer;
-import 'asset_manager_maintenance_page.dart' as maintenance;
-import 'asset_manager_history_page.dart' as history;
-import 'asset_manager_reports_page.dart' as reports;
-import 'asset_manager_scan_page.dart' as scan;
-import 'asset_manager_profile_page.dart' as profile;
-
-class AssetManagerDashboard extends StatefulWidget {
+class AssetManagerDashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? userData;
 
-  const AssetManagerDashboard({
+  const AssetManagerDashboardScreen({
     super.key,
     this.userData,
   });
 
   @override
-  State<AssetManagerDashboard> createState() =>
-      _AssetManagerDashboardState();
+  State<AssetManagerDashboardScreen> createState() =>
+      _AssetManagerDashboardScreenState();
 }
 
-class _AssetManagerDashboardState
-    extends State<AssetManagerDashboard> {
-  // ============================================================
-  // COLORS
-  // ============================================================
+// Compatibility alias if another file uses AssetManagerDashboard.
+typedef AssetManagerDashboard = AssetManagerDashboardScreen;
 
-  static const Color primaryColor = Color(0xFF3157D5);
-  static const Color darkColor = Color(0xFF172033);
-  static const Color textGrey = Color(0xFF6B7280);
+class _AssetManagerDashboardScreenState
+    extends State<AssetManagerDashboardScreen> {
+  static const Color primaryColor = Color(0xFF3B5BDB);
   static const Color backgroundColor = Color(0xFFF5F7FB);
-  static const Color lightBlue = Color(0xFFEAF0FF);
-  static const Color borderColor = Color(0xFFE8EBF2);
 
-  int selectedIndex = 0;
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic> _summary = {};
+  List<dynamic> _activities = [];
 
-  // ============================================================
-  // PAGE TITLES
-  // ============================================================
+  String get _baseUrl {
+    final configuredUrl = widget.userData?['baseUrl'] ??
+        widget.userData?['apiBaseUrl'] ??
+        widget.userData?['api_url'];
 
-  final List<String> titles = [
-    'Dashboard',
-    'Assets',
-    'Requests',
-    'Assign Asset',
-    'Transfer Asset',
-    'Maintenance',
-    'Asset History',
-    'Reports',
-    'Scan Asset',
-    'Profile',
-  ];
+    final value = configuredUrl?.toString().trim();
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+    if (value != null && value.isNotEmpty) {
+      return value.replaceAll(RegExp(r'/+$'), '');
+    }
+
+    // For Flutter Web / Windows on the same computer.
+    // Android emulator: use http://10.0.2.2:8000
+    // Physical phone: use http://YOUR_COMPUTER_IP:8000
+    return 'http://127.0.0.1:8000';
+    
+  }
+
+  String get _token {
+    return (widget.userData?['token'] ??
+            widget.userData?['access_token'] ??
+            widget.userData?['accessToken'] ??
+            '')
+        .toString();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/api/dashboard/summary'),
+            headers: {
+              'Accept': 'application/json',
+              if (_token.isNotEmpty) 'Authorization': 'Bearer $_token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'Server returned ${response.statusCode}. '
+          'Check your backend API and login token.',
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map) {
+        throw Exception('The dashboard API returned an unexpected response.');
+      }
+
+      final root = Map<String, dynamic>.from(decoded);
+      final nested = root['data'];
+
+      final summary = nested is Map
+          ? Map<String, dynamic>.from(nested)
+          : root;
+
+      final activityData = summary['recent_activity'] ??
+          summary['recentActivity'] ??
+          summary['activities'] ??
+          summary['recent_logs'] ??
+          summary['recentLogs'] ??
+          root['recent_activity'] ??
+          root['activities'] ??
+          [];
+
+      if (!mounted) return;
+
+      setState(() {
+        _summary = summary;
+        _activities = activityData is List ? activityData : [];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  num _number(List<String> keys) {
+    for (final key in keys) {
+      final value = _summary[key];
+
+      if (value is num) return value;
+      if (value != null) {
+        final parsed = num.tryParse(value.toString());
+        if (parsed != null) return parsed;
+      }
+    }
+
+    return 0;
+  }
+
+  String _displayNumber(List<String> keys) {
+    return _number(keys).toInt().toString();
+  }
+
+  String _activityValue(dynamic item, List<String> keys) {
+    if (item is! Map) return '';
+
+    for (final key in keys) {
+      final value = item[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString();
+      }
+    }
+
+    return '';
+  }
+
+  String _activityTitle(dynamic item) {
+    return _activityValue(item, [
+      'description',
+      'message',
+      'action',
+      'event',
+      'title',
+      'activity_type',
+      'activityType',
+    ]).replaceAll('_', ' ');
+  }
+
+  String _activitySubtitle(dynamic item) {
+    final actor = _activityValue(item, [
+      'actor_name',
+      'actorName',
+      'user_name',
+      'userName',
+      'performed_by',
+      'performedBy',
+      'username',
+    ]);
+
+    final created = _activityValue(item, [
+      'created_at',
+      'createdAt',
+      'timestamp',
+      'date',
+      'time',
+    ]);
+
+    if (actor.isNotEmpty && created.isNotEmpty) {
+      return '$actor • $created';
+    }
+    if (actor.isNotEmpty) return actor;
+    if (created.isNotEmpty) return created;
+
+    return 'Activity recorded';
+  }
+
+  IconData _activityIcon(String value) {
+    final text = value.toLowerCase();
+
+    if (text.contains('assign')) return Icons.assignment_ind_outlined;
+    if (text.contains('approv')) return Icons.check_circle_outline;
+    if (text.contains('reject')) return Icons.cancel_outlined;
+    if (text.contains('transfer')) return Icons.swap_horiz_rounded;
+    if (text.contains('mainten')) return Icons.build_outlined;
+    if (text.contains('delete') || text.contains('retire')) {
+      return Icons.inventory_2_outlined;
+    }
+    if (text.contains('login')) return Icons.login_rounded;
+    if (text.contains('request')) return Icons.pending_actions_rounded;
+
+    return Icons.history_rounded;
+  }
+
+  Color _activityColor(String value) {
+    final text = value.toLowerCase();
+
+    if (text.contains('reject') || text.contains('delete')) {
+      return Colors.red;
+    }
+    if (text.contains('approv') || text.contains('complete')) {
+      return Colors.green;
+    }
+    if (text.contains('mainten') || text.contains('pending')) {
+      return Colors.orange;
+    }
+
+    return primaryColor;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth >= 900;
+
     return Scaffold(
       backgroundColor: backgroundColor,
-
-      // ========================================================
-      // APP BAR
-      // ========================================================
-
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: darkColor,
-        elevation: 0,
-        surfaceTintColor: Colors.white,
-
-        leading: Builder(
-          builder: (context) {
-            return IconButton(
-              tooltip: 'Menu',
-              icon: const Icon(
-                Icons.menu_rounded,
-                size: 25,
-              ),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-            );
-          },
-        ),
-
-        titleSpacing: 0,
-
-        title: Text(
-          titles[selectedIndex],
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: darkColor,
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-
-        actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: _showNotifications,
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              size: 25,
-            ),
-          ),
-
-          const SizedBox(width: 3),
-
-          Padding(
-            padding: const EdgeInsets.only(
-              right: 14,
-            ),
-            child: CircleAvatar(
-              radius: 19,
-              backgroundColor: primaryColor,
-              child: Text(
-                _getInitials(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      drawer: _buildDrawer(),
-
       body: SafeArea(
-        child: _buildPage(),
+        child: RefreshIndicator(
+          onRefresh: _loadDashboard,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    screenWidth < 600 ? 16 : 28,
+                    20,
+                    screenWidth < 600 ? 16 : 28,
+                    24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(isWide),
+                      const SizedBox(height: 24),
+                      _buildWelcomeCard(),
+                      const SizedBox(height: 26),
+                      _buildSectionHeader(
+                        'Asset Overview',
+                        'Live counts from your backend',
+                      ),
+                      const SizedBox(height: 14),
+                      if (_loading && _summary.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: primaryColor,
+                            ),
+                          ),
+                        )
+                      else if (_error != null && _summary.isEmpty)
+                        _buildErrorCard()
+                      else
+                        _buildMetricGrid(screenWidth),
+                      const SizedBox(height: 26),
+                      _buildSectionHeader(
+                        'Request Overview',
+                        'Assignment request status',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildRequestOverview(screenWidth),
+                      const SizedBox(height: 26),
+                      _buildSectionHeader(
+                        'Operations',
+                        'Transfers and maintenance',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildOperationsGrid(screenWidth),
+                      const SizedBox(height: 26),
+                      _buildSectionHeader(
+                        'Recent Activity',
+                        'Latest events recorded by the system',
+                      ),
+                      const SizedBox(height: 14),
+                      _buildRecentActivity(),
+                      const SizedBox(height: 20),
+                      if (_error != null && _summary.isNotEmpty)
+                        _buildSmallError(),
+                      Center(
+                        child: Text(
+                          'Orgaflow Asset Management',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: _loadDashboard,
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        tooltip: 'Refresh dashboard',
+        child: const Icon(Icons.refresh_rounded),
       ),
     );
   }
 
-  // ============================================================
-  // PAGE ROUTER
-  // ============================================================
-
-  Widget _buildPage() {
-    switch (selectedIndex) {
-      case 1:
-        return assets.AssetManagerAssetsPage(
-          userData: widget.userData,
-        );
-
-      case 2:
-        return requests.AssetManagerRequestsPage(
-          userData: widget.userData,
-        );
-
-      case 3:
-        return assign.AssetManagerAssignPage(
-          userData: widget.userData,
-        );
-
-      case 4:
-        return transfer.AssetManagerTransferPage(
-          userData: widget.userData,
-        );
-
-      case 5:
-        return maintenance.AssetManagerMaintenancePage(
-          userData: widget.userData,
-        );
-
-      case 6:
-        return history.AssetManagerHistoryPage(
-          userData: widget.userData,
-        );
-
-      case 7:
-        return reports.AssetManagerReportsPage(
-          userData: widget.userData,
-        );
-
-      case 8:
-        return scan.AssetManagerScanPage(
-          userData: widget.userData,
-        );
-
-      case 9:
-        return profile.AssetManagerProfilePage(
-          userData: widget.userData,
-        );
-
-      case 0:
-      default:
-        return _buildDashboard();
-    }
-  }
-
-  // ============================================================
-  // DASHBOARD
-  // ============================================================
-
-  Widget _buildDashboard() {
-    final String name =
-        widget.userData?['name']?.toString().trim().isNotEmpty == true
-            ? widget.userData!['name'].toString()
-            : 'Asset Manager';
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double width = constraints.maxWidth;
-
-        final double horizontalPadding =
-            width >= 1100 ? 32 : 18;
-
-        return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            20,
-            horizontalPadding,
-            35,
-          ),
-
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 1250,
-              ),
-
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-
-                children: [
-                  // ==================================================
-                  // WELCOME
-                  // ==================================================
-
-                  _buildWelcomeSection(name),
-
-                  const SizedBox(height: 24),
-
-                  // ==================================================
-                  // STATISTICS
-                  // ==================================================
-
-                  _buildStatsSection(width),
-
-                  const SizedBox(height: 30),
-
-                  // ==================================================
-                  // QUICK ACTIONS HEADER
-                  // ==================================================
-
-                  _sectionHeader(
-                    title: 'Quick Actions',
-                    subtitle:
-                        'Frequently used asset management tools',
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ==================================================
-                  // QUICK ACTIONS
-                  // ==================================================
-
-                  _buildQuickActions(width),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // STATISTICS SECTION
-  // ============================================================
-
-  Widget _buildStatsSection(double width) {
-    final List<Map<String, dynamic>> cards = [
-      {
-        'title': 'Total Assets',
-        'value': '356',
-        'icon': Icons.devices_other_rounded,
-      },
-      {
-        'title': 'Assigned',
-        'value': '291',
-        'icon': Icons.assignment_turned_in_rounded,
-      },
-      {
-        'title': 'Available',
-        'value': '65',
-        'icon': Icons.inventory_2_rounded,
-      },
-      {
-        'title': 'Maintenance',
-        'value': '18',
-        'icon': Icons.build_rounded,
-      },
-    ];
-
-    // ------------------------------------------------------------
-    // MOBILE
-    // ------------------------------------------------------------
-
-    if (width < 600) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                _statCard(
-                  title: cards[0]['title'] as String,
-                  value: cards[0]['value'] as String,
-                  icon: cards[0]['icon'] as IconData,
-                ),
-                const SizedBox(height: 12),
-                _statCard(
-                  title: cards[2]['title'] as String,
-                  value: cards[2]['value'] as String,
-                  icon: cards[2]['icon'] as IconData,
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              children: [
-                _statCard(
-                  title: cards[1]['title'] as String,
-                  value: cards[1]['value'] as String,
-                  icon: cards[1]['icon'] as IconData,
-                ),
-                const SizedBox(height: 12),
-                _statCard(
-                  title: cards[3]['title'] as String,
-                  value: cards[3]['value'] as String,
-                  icon: cards[3]['icon'] as IconData,
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    // ------------------------------------------------------------
-    // TABLET / DESKTOP
-    // ------------------------------------------------------------
+  Widget _buildHeader(bool isWide) {
+    final userName = (widget.userData?['name'] ??
+            widget.userData?['full_name'] ??
+            widget.userData?['username'] ??
+            'Asset Manager')
+        .toString();
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(
-        cards.length,
-        (index) {
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                right: index == cards.length - 1
-                    ? 0
-                    : 12,
-              ),
-              child: _statCard(
-                title: cards[index]['title'] as String,
-                value: cards[index]['value'] as String,
-                icon: cards[index]['icon'] as IconData,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // WELCOME SECTION
-  // ============================================================
-
-  Widget _buildWelcomeSection(String name) {
-    return Container(
-      width: double.infinity,
-
-      padding: const EdgeInsets.all(20),
-
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF3157D5),
-            Color(0xFF4770E8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-
-        borderRadius: BorderRadius.circular(22),
-
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withOpacity(0.20),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              mainAxisSize:
-                  MainAxisSize.min,
-
-              children: [
-                const Text(
-                  'Welcome back 👋',
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 7),
-
-                const Text(
-                  'Manage and track your organization assets easily.',
-                  maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
-
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 15),
-
-          // ======================================================
-          // LOGO
-          // ======================================================
-
-          Container(
-            height: 72,
-            width: 72,
-
-            padding: const EdgeInsets.all(7),
-
-            decoration: BoxDecoration(
-              color: Colors.white,
-
-              borderRadius:
-                  BorderRadius.circular(17),
-
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      Colors.black.withOpacity(0.10),
-                  blurRadius: 10,
-                  offset:
-                      const Offset(0, 4),
-                ),
-              ],
-            ),
-
-            child: Image.asset(
-              'assets/images/orgaflow_logo.png',
-              fit: BoxFit.contain,
-
-              errorBuilder:
-                  (context, error, stackTrace) {
-                return const Icon(
-                  Icons.business_rounded,
-                  color: primaryColor,
-                  size: 40,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // STAT CARD
-  // ============================================================
-
-  Widget _statCard({
-    required String title,
-    required String value,
-    required IconData icon,
-  }) {
-    // IMPORTANT:
-    // Fixed height prevents Grid/Column RenderFlex overflow.
-    return Container(
-      width: double.infinity,
-      height: 128,
-
-      padding: const EdgeInsets.all(15),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(18),
-
-        border: Border.all(
-          color: borderColor,
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black.withOpacity(0.035),
-            blurRadius: 12,
-            offset:
-                const Offset(0, 4),
-          ),
-        ],
-      ),
-
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
-        mainAxisAlignment:
-            MainAxisAlignment.start,
-
-        children: [
-          // ======================================================
-          // ICON
-          // ======================================================
-
-          Container(
-            height: 40,
-            width: 40,
-
-            decoration: BoxDecoration(
-              color: lightBlue,
-
-              borderRadius:
-                  BorderRadius.circular(11),
-            ),
-
-            child: Icon(
-              icon,
-              color: primaryColor,
-              size: 21,
-            ),
-          ),
-
-          const SizedBox(height: 9),
-
-          // ======================================================
-          // VALUE
-          // ======================================================
-
-          Text(
-            value,
-            maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
-
-            style: const TextStyle(
-              fontSize: 23,
-              height: 1.0,
-              fontWeight: FontWeight.w800,
-              color: darkColor,
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          // ======================================================
-          // TITLE
-          // ======================================================
-
-          Flexible(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow:
-                  TextOverflow.ellipsis,
-
-              style: const TextStyle(
-                color: textGrey,
-                fontSize: 12,
-                height: 1.1,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // SECTION HEADER
-  // ============================================================
-
-  Widget _sectionHeader({
-    required String title,
-    required String subtitle,
-  }) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-
-      mainAxisSize:
-          MainAxisSize.min,
-
       children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow:
-              TextOverflow.ellipsis,
-
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: darkColor,
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: primaryColor,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: const Icon(
+            Icons.inventory_2_rounded,
+            color: Colors.white,
+            size: 26,
           ),
         ),
-
-        const SizedBox(height: 4),
-
-        Text(
-          subtitle,
-          maxLines: 1,
-          overflow:
-              TextOverflow.ellipsis,
-
-          style: const TextStyle(
-            color: textGrey,
-            fontSize: 13,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Asset Manager',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF172033),
+                ),
+              ),
+              Text(
+                'Welcome, $userName',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: _loadDashboard,
+          tooltip: 'Refresh',
+          icon: const Icon(Icons.refresh_rounded),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: primaryColor,
           ),
         ),
       ],
     );
   }
 
-  // ============================================================
-  // QUICK ACTIONS
-  // ============================================================
+  Widget _buildWelcomeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3B5BDB), Color(0xFF667EEA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Dashboard Overview',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Monitor assets, requests, transfers and maintenance '
+                  'from one place.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _loadDashboard,
+                  icon: const Icon(Icons.sync_rounded, size: 17),
+                  label: const Text('Refresh data'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.query_stats_rounded,
+            size: 70,
+            color: Colors.white70,
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildQuickActions(double width) {
-    final List<Map<String, dynamic>> actions = [
-      {
-        'icon': Icons.devices_other_rounded,
-        'title': 'All Assets',
-        'subtitle': 'View and manage assets',
-        'index': 1,
-      },
-      {
-        'icon': Icons.pending_actions_rounded,
-        'title': 'Requests',
-        'subtitle': 'Review asset requests',
-        'index': 2,
-      },
-      {
-        'icon': Icons.assignment_ind_rounded,
-        'title': 'Assign Asset',
-        'subtitle': 'Assign available assets',
-        'index': 3,
-      },
-      {
-        'icon': Icons.swap_horiz_rounded,
-        'title': 'Transfer Asset',
-        'subtitle': 'Transfer between employees',
-        'index': 4,
-      },
-      {
-        'icon': Icons.build_rounded,
-        'title': 'Maintenance',
-        'subtitle': 'Manage asset maintenance',
-        'index': 5,
-      },
-      {
-        'icon': Icons.history_rounded,
-        'title': 'Asset History',
-        'subtitle': 'View assignment history',
-        'index': 6,
-      },
-      {
-        'icon': Icons.bar_chart_rounded,
-        'title': 'Reports',
-        'subtitle': 'View reports and analytics',
-        'index': 7,
-      },
-      {
-        'icon': Icons.qr_code_scanner_rounded,
-        'title': 'Scan Asset',
-        'subtitle': 'Scan QR or barcode',
-        'index': 8,
-      },
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF172033),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricGrid(double screenWidth) {
+    final columns = screenWidth >= 1200
+        ? 4
+        : screenWidth >= 650
+            ? 2
+            : 2;
+
+    final cards = <_MetricData>[
+      _MetricData(
+        title: 'Total Assets',
+        value: _displayNumber([
+          'total_assets',
+          'totalAssets',
+          'assets_total',
+          'assets_count',
+        ]),
+        icon: Icons.inventory_2_outlined,
+        color: const Color(0xFF3B5BDB),
+      ),
+      _MetricData(
+        title: 'Assigned Assets',
+        value: _displayNumber([
+          'assigned_assets',
+          'assignedAssets',
+          'total_assigned',
+          'assigned_count',
+        ]),
+        icon: Icons.assignment_ind_outlined,
+        color: const Color(0xFF0D9488),
+      ),
+      _MetricData(
+        title: 'Available Assets',
+        value: _displayNumber([
+          'available_assets',
+          'availableAssets',
+          'unassigned_assets',
+          'unassignedAssets',
+        ]),
+        icon: Icons.inventory_outlined,
+        color: const Color(0xFF2563EB),
+      ),
+      _MetricData(
+        title: 'Under Maintenance',
+        value: _displayNumber([
+          'assets_under_maintenance',
+          'under_maintenance',
+          'underMaintenance',
+          'maintenance_assets',
+        ]),
+        icon: Icons.build_circle_outlined,
+        color: const Color(0xFFD97706),
+      ),
+      _MetricData(
+        title: 'Inactive / Retired',
+        value: _displayNumber([
+          'inactive_assets',
+          'inactiveAssets',
+          'retired_assets',
+          'retiredAssets',
+        ]),
+        icon: Icons.inventory_rounded,
+        color: const Color(0xFF64748B),
+      ),
+      _MetricData(
+        title: 'Total Requests',
+        value: _displayNumber([
+          'total_requests',
+          'totalRequests',
+          'requests_total',
+        ]),
+        icon: Icons.assignment_outlined,
+        color: const Color(0xFF7C3AED),
+      ),
     ];
 
-    // ============================================================
-    // MOBILE
-    // ============================================================
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final itemWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
 
-    if (width < 700) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: actions.map(
-          (action) {
-            return Padding(
-              padding:
-                  const EdgeInsets.only(
-                bottom: 10,
-              ),
-
-              child: _actionCard(
-                icon:
-                    action['icon']
-                        as IconData,
-
-                title:
-                    action['title']
-                        as String,
-
-                subtitle:
-                    action['subtitle']
-                        as String,
-
-                onTap: () {
-                  _changePage(
-                    action['index']
-                        as int,
-                  );
-                },
-              ),
-            );
-          },
-        ).toList(),
-      );
-    }
-
-    // ============================================================
-    // TABLET / DESKTOP
-    // ============================================================
-
-    return GridView.builder(
-      shrinkWrap: true,
-
-      physics:
-          const NeverScrollableScrollPhysics(),
-
-      itemCount: actions.length,
-
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-
-        // Larger height than before.
-        childAspectRatio: 3.4,
-      ),
-
-      itemBuilder: (context, index) {
-        final action =
-            actions[index];
-
-        return _actionCard(
-          icon:
-              action['icon']
-                  as IconData,
-
-          title:
-              action['title']
-                  as String,
-
-          subtitle:
-              action['subtitle']
-                  as String,
-
-          onTap: () {
-            _changePage(
-              action['index']
-                  as int,
-            );
-          },
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: cards
+              .map(
+                (item) => SizedBox(
+                  width: itemWidth,
+                  child: _buildMetricCard(item),
+                ),
+              )
+              .toList(),
         );
       },
     );
   }
 
-  // ============================================================
-  // ACTION CARD
-  // ============================================================
-
-  Widget _actionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-
-      borderRadius:
-          BorderRadius.circular(16),
-
-      child: InkWell(
-        borderRadius:
-            BorderRadius.circular(16),
-
-        onTap: onTap,
-
-        child: Container(
-          constraints:
-              const BoxConstraints(
-            minHeight: 72,
+  Widget _buildMetricCard(_MetricData item) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8ECF4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-
-          padding:
-              const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 11,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: item.color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(item.icon, color: item.color, size: 22),
           ),
-
-          decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(16),
-
-            border: Border.all(
-              color: borderColor,
+          const SizedBox(height: 16),
+          Text(
+            item.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF172033),
             ),
           ),
+          const SizedBox(height: 5),
+          Text(
+            item.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.3,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          child: Row(
-            children: [
-              // ==================================================
-              // ICON
-              // ==================================================
+  Widget _buildRequestOverview(double screenWidth) {
+    final items = <_StatusData>[
+      _StatusData(
+        'Approved',
+        _displayNumber([
+          'approved_requests',
+          'approvedRequests',
+          'requests_approved',
+        ]),
+        Colors.green,
+        Icons.check_circle_outline,
+      ),
+      _StatusData(
+        'Pending',
+        _displayNumber([
+          'pending_requests',
+          'pendingRequests',
+          'requests_pending',
+        ]),
+        Colors.orange,
+        Icons.hourglass_top_rounded,
+      ),
+      _StatusData(
+        'Rejected',
+        _displayNumber([
+          'rejected_requests',
+          'rejectedRequests',
+          'requests_rejected',
+        ]),
+        Colors.red,
+        Icons.cancel_outlined,
+      ),
+    ];
 
-              Container(
-                height: 44,
-                width: 44,
+    return LayoutBuilder(
+      builder: (context, constraints) {
 
-                decoration:
-                    BoxDecoration(
-                  color: lightBlue,
-
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
+        return Row(
+          children: items.map((item) {
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 17,
+                  horizontal: 8,
                 ),
-
-                child: Icon(
-                  icon,
-                  color: primaryColor,
-                  size: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE8ECF4)),
                 ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // ==================================================
-              // TEXT
-              // ==================================================
-
-              Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
-
-                  mainAxisSize:
-                      MainAxisSize.min,
-
                   children: [
+                    Icon(item.icon, color: item.color, size: 23),
+                    const SizedBox(height: 10),
                     Text(
-                      title,
-                      maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.w700,
-                        color:
-                            darkColor,
-                        fontSize: 14,
+                      item.value,
+                      style: TextStyle(
+                        fontSize: screenWidth < 360 ? 19 : 23,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF172033),
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 3,
-                    ),
-
+                    const SizedBox(height: 5),
                     Text(
-                      subtitle,
+                      item.title,
+                      textAlign: TextAlign.center,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-
-                      style:
-                          const TextStyle(
-                        color:
-                            textGrey,
-                        fontSize: 12,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(width: 7),
-
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color:
-                    Color(0xFF9AA1B1),
-              ),
-            ],
-          ),
-        ),
-      ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
-  // ============================================================
-  // DRAWER
-  // ============================================================
+  Widget _buildOperationsGrid(double screenWidth) {
+    final items = <_MetricData>[
+      _MetricData(
+        title: 'Total Transfers',
+        value: _displayNumber([
+          'total_transfers',
+          'totalTransfers',
+          'transfers_count',
+          'transfer_count',
+        ]),
+        icon: Icons.swap_horiz_rounded,
+        color: const Color(0xFF0D9488),
+      ),
+      _MetricData(
+        title: 'Open Maintenance',
+        value: _displayNumber([
+          'open_maintenance',
+          'openMaintenance',
+          'maintenance_open',
+          'pending_maintenance',
+        ]),
+        icon: Icons.build_outlined,
+        color: const Color(0xFFD97706),
+      ),
+      _MetricData(
+        title: 'Completed Maintenance',
+        value: _displayNumber([
+          'completed_maintenance',
+          'completedMaintenance',
+          'maintenance_completed',
+        ]),
+        icon: Icons.task_alt_rounded,
+        color: const Color(0xFF16A34A),
+      ),
+    ];
 
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: Colors.white,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 700 ? 3 : 2;
+        const spacing = 12.0;
+        final itemWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
 
-      child: SafeArea(
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: itemWidth,
+                  child: _buildMetricCard(item),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentActivity() {
+    if (_loading && _activities.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_activities.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8ECF4)),
+        ),
         child: Column(
           children: [
-            _buildDrawerHeader(),
-
-            Expanded(
-              child: ListView(
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 10,
-                ),
-
-                children: [
-                  _drawerItem(
-                    Icons.dashboard_rounded,
-                    'Dashboard',
-                    0,
-                  ),
-
-                  _drawerItem(
-                    Icons.devices_other_rounded,
-                    'Assets',
-                    1,
-                  ),
-
-                  _drawerItem(
-                    Icons.pending_actions_rounded,
-                    'Requests',
-                    2,
-                  ),
-
-                  _drawerItem(
-                    Icons.assignment_ind_rounded,
-                    'Assign Asset',
-                    3,
-                  ),
-
-                  _drawerItem(
-                    Icons.swap_horiz_rounded,
-                    'Transfer Asset',
-                    4,
-                  ),
-
-                  _drawerItem(
-                    Icons.build_rounded,
-                    'Maintenance',
-                    5,
-                  ),
-
-                  _drawerItem(
-                    Icons.history_rounded,
-                    'Asset History',
-                    6,
-                  ),
-
-                  _drawerItem(
-                    Icons.bar_chart_rounded,
-                    'Reports',
-                    7,
-                  ),
-
-                  _drawerItem(
-                    Icons.qr_code_scanner_rounded,
-                    'Scan Asset',
-                    8,
-                  ),
-
-                  _drawerItem(
-                    Icons.person_outline_rounded,
-                    'Profile',
-                    9,
-                  ),
-                ],
+            Icon(
+              Icons.history_rounded,
+              size: 38,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'No recent activity',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
             ),
-
-            const Divider(
-              height: 1,
-              indent: 15,
-              endIndent: 15,
-            ),
-
-            Padding(
-              padding:
-                  const EdgeInsets.all(10),
-
-              child: ListTile(
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
-                ),
-
-                leading:
-                    const Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red,
-                ),
-
-                title:
-                    const Text(
-                  'Logout',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-
-                onTap: _logout,
+            const SizedBox(height: 5),
+            Text(
+              'Activity will appear here when the backend records events.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
               ),
             ),
           ],
         ),
+      );
+    }
+
+    final visibleActivities = _activities.take(10).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8ECF4)),
+      ),
+      child: Column(
+        children: List.generate(visibleActivities.length, (index) {
+          final item = visibleActivities[index];
+          final title = _activityTitle(item);
+          final displayTitle =
+              title.isEmpty ? 'Activity recorded' : title;
+          final color = _activityColor(displayTitle);
+
+          return Column(
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 5,
+                ),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    _activityIcon(displayTitle),
+                    color: color,
+                    size: 21,
+                  ),
+                ),
+                title: Text(
+                  displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF172033),
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Text(
+                    _activitySubtitle(item),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+              if (index != visibleActivities.length - 1)
+                const Divider(
+                  height: 1,
+                  indent: 70,
+                  endIndent: 14,
+                  color: Color(0xFFF0F2F7),
+                ),
+            ],
+          );
+        }),
       ),
     );
   }
 
-  // ============================================================
-  // DRAWER HEADER
-  // ============================================================
-
-  Widget _buildDrawerHeader() {
-    final String name =
-        widget.userData?['name']
-                    ?.toString()
-                    .trim()
-                    .isNotEmpty ==
-                true
-            ? widget.userData!['name']
-                .toString()
-            : 'Asset Manager';
-
+  Widget _buildErrorCard() {
     return Container(
       width: double.infinity,
-
-      padding:
-          const EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        22,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.red.shade100),
       ),
-
-      decoration:
-          const BoxDecoration(
-        color: primaryColor,
-
-        borderRadius:
-            BorderRadius.only(
-          bottomLeft:
-              Radius.circular(24),
-          bottomRight:
-              Radius.circular(24),
-        ),
-      ),
-
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
         children: [
-          // ==================================================
-          // BIG LOGO
-          // ==================================================
-
-          Container(
-            height: 86,
-            width: 86,
-
-            padding:
-                const EdgeInsets.all(8),
-
-            decoration:
-                BoxDecoration(
-              color: Colors.white,
-
-              borderRadius:
-                  BorderRadius.circular(
-                18,
-              ),
-
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      Colors.black.withOpacity(0.12),
-                  blurRadius: 12,
-                  offset:
-                      const Offset(0, 5),
-                ),
-              ],
-            ),
-
-            child: Image.asset(
-              'assets/images/orgaflow_logo.png',
-
-              fit: BoxFit.contain,
-
-              errorBuilder:
-                  (context, error, stackTrace) {
-                return const Icon(
-                  Icons.business_rounded,
-                  color: primaryColor,
-                  size: 50,
-                );
-              },
-            ),
+          Icon(
+            Icons.cloud_off_outlined,
+            color: Colors.red.shade400,
+            size: 42,
           ),
-
-          const SizedBox(height: 16),
-
-          // ==================================================
-          // USER NAME
-          // ==================================================
-
-          Text(
-            name,
-            maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
-
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 19,
+          const SizedBox(height: 12),
+          const Text(
+            'Unable to load dashboard',
+            style: TextStyle(
               fontWeight: FontWeight.w800,
+              fontSize: 16,
             ),
           ),
-
-          const SizedBox(height: 4),
-
-          const Text(
-            'Asset Manager',
-            maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
-
+          const SizedBox(height: 8),
+          Text(
+            _error ?? 'Unknown error',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white70,
+              color: Colors.grey.shade700,
               fontSize: 12,
-              fontWeight: FontWeight.w500,
+              height: 1.5,
             ),
           ),
-
-          const SizedBox(height: 2),
-
-          const Text(
-            'OrgaFlow Asset Management',
-            maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
-
-            style: TextStyle(
-              color: Colors.white60,
-              fontSize: 11,
+          const SizedBox(height: 15),
+          ElevatedButton.icon(
+            onPressed: _loadDashboard,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -1237,360 +949,57 @@ class _AssetManagerDashboardState
     );
   }
 
-  // ============================================================
-  // DRAWER ITEM
-  // ============================================================
-
-  Widget _drawerItem(
-    IconData icon,
-    String title,
-    int index,
-  ) {
-    final bool selected =
-        selectedIndex == index;
-
+  Widget _buildSmallError() {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 3,
-      ),
-
-      child: ListTile(
-        dense: true,
-
-        shape:
-            RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(
-            12,
-          ),
-        ),
-
-        selected: selected,
-
-        selectedTileColor:
-            lightBlue,
-
-        leading: Icon(
-          icon,
-          size: 21,
-
-          color: selected
-              ? primaryColor
-              : Colors.grey.shade700,
-        ),
-
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow:
-              TextOverflow.ellipsis,
-
-          style: TextStyle(
-            fontSize: 14,
-
-            fontWeight: selected
-                ? FontWeight.w700
-                : FontWeight.w500,
-
-            color: selected
-                ? primaryColor
-                : darkColor,
-          ),
-        ),
-
-        trailing: selected
-            ? const Icon(
-                Icons.chevron_right_rounded,
-                color: primaryColor,
-                size: 20,
-              )
-            : null,
-
-        onTap: () {
-          setState(() {
-            selectedIndex = index;
-          });
-
-          Navigator.pop(context);
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // INITIALS
-  // ============================================================
-
-  String _getInitials() {
-    final String? name =
-        widget.userData?['name']
-            ?.toString();
-
-    if (name == null ||
-        name.trim().isEmpty) {
-      return 'AM';
-    }
-
-    final List<String> parts =
-        name.trim().split(
-          RegExp(r'\s+'),
-        );
-
-    if (parts.length == 1) {
-      return parts[0]
-          .substring(0, 1)
-          .toUpperCase();
-    }
-
-    return '${parts.first.substring(0, 1)}'
-            '${parts.last.substring(0, 1)}'
-        .toUpperCase();
-  }
-
-  // ============================================================
-  // PAGE CHANGE
-  // ============================================================
-
-  void _changePage(int index) {
-    setState(() {
-      selectedIndex = index;
-    });
-  }
-
-  // ============================================================
-  // NOTIFICATIONS
-  // ============================================================
-
-  void _showNotifications() {
-    showModalBottomSheet(
-      context: context,
-
-      backgroundColor: Colors.white,
-
-      isScrollControlled: true,
-
-      shape:
-          const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
-      ),
-
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              24,
-            ),
-
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              children: [
-                // ==================================================
-                // HEADER
-                // ==================================================
-
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Notifications',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-
-                        style:
-                            TextStyle(
-                          fontSize: 21,
-                          fontWeight:
-                              FontWeight.w800,
-                          color:
-                              darkColor,
-                        ),
-                      ),
-                    ),
-
-                    IconButton(
-                      onPressed: () {
-                        Navigator.pop(
-                          context,
-                        );
-                      },
-
-                      icon:
-                          const Icon(
-                        Icons.close_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 8),
-
-                // ==================================================
-                // NOTIFICATION 1
-                // ==================================================
-
-                _notificationItem(
-                  icon:
-                      Icons.pending_actions_rounded,
-                  iconColor:
-                      primaryColor,
-                  iconBackground:
-                      lightBlue,
-                  title:
-                      'New asset request',
-                  subtitle:
-                      'An employee has requested an asset.',
-                ),
-
-                // ==================================================
-                // NOTIFICATION 2
-                // ==================================================
-
-                _notificationItem(
-                  icon:
-                      Icons.build_rounded,
-                  iconColor:
-                      Colors.orange,
-                  iconBackground:
-                      const Color(0xFFFFF4E5),
-                  title:
-                      'Maintenance required',
-                  subtitle:
-                      'Some assets require maintenance.',
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // NOTIFICATION ITEM
-  // ============================================================
-
-  Widget _notificationItem({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBackground,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      margin:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
-
-      padding:
-          const EdgeInsets.all(12),
-
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(0xFFF8F9FC),
-
-        borderRadius:
-            BorderRadius.circular(14),
-      ),
-
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          Container(
-            height: 44,
-            width: 44,
-
-            decoration:
-                BoxDecoration(
-              color:
-                  iconBackground,
-
-              borderRadius:
-                  BorderRadius.circular(
-                12,
+          Icon(Icons.warning_amber_rounded,
+              color: Colors.orange.shade700, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Refresh failed: $_error',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.orange.shade800,
               ),
             ),
-
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 22,
-            ),
           ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              mainAxisSize:
-                  MainAxisSize.min,
-
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-
-                  style:
-                      const TextStyle(
-                    fontWeight:
-                        FontWeight.w700,
-                    color:
-                        darkColor,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
-
-                  style:
-                      const TextStyle(
-                    color:
-                        textGrey,
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
+          TextButton(
+            onPressed: _loadDashboard,
+            child: const Text('Retry'),
           ),
         ],
       ),
     );
   }
+}
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
+class _MetricData {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
 
-  void _logout() {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/',
-      (route) => false,
-    );
-  }
+  const _MetricData({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _StatusData {
+  final String title;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _StatusData(
+    this.title,
+    this.value,
+    this.color,
+    this.icon,
+  );
 }
