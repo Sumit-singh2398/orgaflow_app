@@ -1,1297 +1,1421 @@
-from fastapi import FastAPI, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddleware
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from passlib.context import CryptContext
-from google.oauth2 import id_token
-from google.auth.transport import requests
-from jose import jwt, JWTError
-from pydantic import BaseModel
-from datetime import datetime, timedelta
 import os
+import hmac
+import hashlib
+import secrets
+import smtplib
+from email.message import EmailMessage
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-# =========================================================
-# APP CONFIG
-# =========================================================
-app = FastAPI(
-    title="Orgaflow Backend",
-    version="1.2.0"
+import jwt
+import psycopg2
+import psycopg2.extras
+
+from psycopg2.extras import RealDictCursor
+from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, Field
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+APP_NAME = "Orgaflow API"
+
+JWT_SECRET_KEY = os.getenv(
+    "JWT_SECRET_KEY",
+    "CHANGE_THIS_SECRET_BEFORE_DEPLOYMENT"
 )
 
-# =========================================================
-# CORS
-# =========================================================
+JWT_ALGORITHM = "HS256"
+
+ACCESS_TOKEN_MINUTES = int(
+    os.getenv("ACCESS_TOKEN_MINUTES", "1440")
+)
+
+DB_CONFIG = {
+    "host": os.getenv("ORGAFLOW_DB_HOST", "localhost"),
+    "port": int(os.getenv("ORGAFLOW_DB_PORT", "5432")),
+    "dbname": os.getenv("ORGAFLOW_DB_NAME", "orgaflow_db"),
+    "user": os.getenv("ORGAFLOW_DB_USER", "postgres"),
+    "password": os.getenv("ORGAFLOW_DB_PASSWORD", "mehra"),
+    "connect_timeout": 8,
+}
+
+app = FastAPI(
+    title=APP_NAME,
+    version="1.0.0",
+    description="Orgaflow Asset Management API"
+)
+
+# Development configuration. Restrict origins in production.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# =========================================================
-# DATABASE CONFIG
-# =========================================================
-DB_HOST = os.getenv("ORGAFLOW_DB_HOST", "localhost")
-DB_PORT = int(os.getenv("ORGAFLOW_DB_PORT", "5432"))
-DB_NAME = os.getenv("ORGAFLOW_DB_NAME", "orgaflow_db")
-DB_USER = os.getenv("ORGAFLOW_DB_USER", "postgres")
-DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "mehra")
 
-# =========================================================
-# GOOGLE CONFIG
-# =========================================================
-GOOGLE_CLIENT_ID = (
-    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3"
-    ".apps.googleusercontent.com"
-)
+# ---------------------------------------------------------------------------
+# Database connection
+# ---------------------------------------------------------------------------
 
-# =========================================================
-# JWT CONFIG
-# =========================================================
-JWT_SECRET = os.getenv(
-    "ORGAFLOW_JWT_SECRET",
-    "orgaflow_super_secret_key_change_later"
-)
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_MINUTES = 120 * 24 * 7
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
-
-# =========================================================
-# DATABASE CONNECTION
-# =========================================================
 def get_connection():
-    return psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
-
-# =========================================================
-# CREATE REQUEST TABLE
-# =========================================================
-def create_request_table():
-    connection = None
-    cursor = None
     try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS asset_requests (
-                id SERIAL PRIMARY KEY,
-                request_code VARCHAR(30) UNIQUE NOT NULL,
-                user_id INTEGER NOT NULL,
-                employee_name VARCHAR(150) NOT NULL,
-                employee_email VARCHAR(255) NOT NULL,
-                department VARCHAR(150),
-                asset_id VARCHAR(100) NOT NULL,
-                asset_name VARCHAR(255) NOT NULL,
-                asset_category VARCHAR(150),
-                asset_brand VARCHAR(150),
-                asset_model VARCHAR(150),
-                priority VARCHAR(30) NOT NULL DEFAULT 'Normal',
-                description TEXT NOT NULL,
-                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
-                rejection_reason TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                reviewed_at TIMESTAMP NULL,
-                reviewed_by INTEGER NULL
-            )
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_asset_requests_user_id
-            ON asset_requests(user_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_asset_requests_status
-            ON asset_requests(status)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_asset_requests_created_at
-            ON asset_requests(created_at DESC)
-        """)
-        connection.commit()
-        print("ASSET REQUEST TABLE READY")
-    except Exception as e:
-        if connection:
-            connection.rollback()
-        print("REQUEST TABLE ERROR:", e)
-        raise
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+        return psycopg2.connect(**DB_CONFIG)
+    except psycopg2.Error as exc:
+        print(
+            f"[DATABASE CONNECTION ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Could not connect to PostgreSQL. "
+                "Check database settings and server status."
+            ),
+        ) from exc
 
-# =========================================================
-# CREATE NOTIFICATIONS TABLE
-# =========================================================
-def create_notification_table():
-    connection = None
-    cursor = None
+
+# ---------------------------------------------------------------------------
+# Database initialization
+# ---------------------------------------------------------------------------
+
+def initialize_database():
+    """
+    Create required tables if they do not exist.
+    Add a few demo assets when their codes are not already present.
+    """
+    conn = None
+
     try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS notifications (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                title VARCHAR(200) NOT NULL,
-                message TEXT NOT NULL,
-                notification_type VARCHAR(50) NOT NULL DEFAULT 'general',
-                request_id INTEGER NULL,
-                is_read BOOLEAN NOT NULL DEFAULT FALSE,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_notifications_user_id
-            ON notifications(user_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_notifications_unread
-            ON notifications(user_id, is_read)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_notifications_created_at
-            ON notifications(created_at DESC)
-        """)
-        connection.commit()
-        print("NOTIFICATIONS TABLE READY")
-    except Exception as e:
-        if connection:
-            connection.rollback()
-        print("NOTIFICATION TABLE ERROR:", e)
-        raise
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+        conn = psycopg2.connect(**DB_CONFIG)
 
-# =========================================================
-# STARTUP
-# =========================================================
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGSERIAL PRIMARY KEY,
+                    full_name VARCHAR(150) NOT NULL,
+                    email VARCHAR(320) UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role VARCHAR(40) NOT NULL DEFAULT 'EMPLOYEE',
+                    department VARCHAR(120) NOT NULL DEFAULT '',
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS assets (
+                    id BIGSERIAL PRIMARY KEY,
+                    asset_code VARCHAR(80) UNIQUE NOT NULL,
+                    asset_name VARCHAR(200) NOT NULL,
+                    category VARCHAR(100) NOT NULL DEFAULT 'General',
+                    department VARCHAR(120) NOT NULL DEFAULT '',
+                    status VARCHAR(30) NOT NULL DEFAULT 'Available',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS asset_assignments (
+                    id BIGSERIAL PRIMARY KEY,
+                    asset_code VARCHAR(80) NOT NULL,
+                    asset_name VARCHAR(200) NOT NULL,
+                    employee_name VARCHAR(150) NOT NULL,
+                    employee_email VARCHAR(320) NOT NULL,
+                    department VARCHAR(120) NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    status VARCHAR(30) NOT NULL DEFAULT 'Assigned',
+                    assigned_by BIGINT NULL
+                        REFERENCES users(id) ON DELETE SET NULL,
+                    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    returned_at TIMESTAMPTZ NULL
+                )
+            """)
+
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                    uq_asset_assignments_active_asset
+                ON asset_assignments (asset_code)
+                WHERE status = 'Assigned'
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id BIGSERIAL PRIMARY KEY,
+                    actor_user_id BIGINT NULL
+                        REFERENCES users(id) ON DELETE SET NULL,
+                    action VARCHAR(120) NOT NULL,
+                    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+
+            demo_assets = [
+                (
+                    "AST-001",
+                    "Dell Latitude Laptop",
+                    "Laptop",
+                    "IT",
+                ),
+                (
+                    "AST-002",
+                    "HP LaserJet Printer",
+                    "Printer",
+                    "Administration",
+                ),
+                (
+                    "AST-003",
+                    "Samsung Monitor",
+                    "Monitor",
+                    "IT",
+                ),
+                (
+                    "AST-004",
+                    "Logitech Keyboard",
+                    "Accessory",
+                    "IT",
+                ),
+                (
+                    "AST-005",
+                    "Office Projector",
+                    "Projector",
+                    "Conference",
+                ),
+            ]
+
+            for code, name, category, department in demo_assets:
+                cur.execute("""
+                    INSERT INTO assets (
+                        asset_code,
+                        asset_name,
+                        category,
+                        department,
+                        status
+                    )
+                    VALUES (%s, %s, %s, %s, 'Available')
+                    ON CONFLICT (asset_code) DO NOTHING
+                """, (code, name, category, department))
+
+        conn.commit()
+        print("[DATABASE] Tables initialized successfully.")
+
+    except psycopg2.Error as exc:
+        if conn:
+            conn.rollback()
+
+        print(
+            f"[DATABASE INITIALIZATION ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+        raise
+
+    finally:
+        if conn:
+            conn.close()
+
+
 @app.on_event("startup")
 def startup_event():
-    print("ORGAFLOW BACKEND STARTING")
+    initialize_database()
+
+
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
+
+class RegisterIn(BaseModel):
+    full_name: str = Field(min_length=2, max_length=150)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    department: str = Field(default="", max_length=120)
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AssetIn(BaseModel):
+    asset_code: str = Field(min_length=1, max_length=80)
+    asset_name: str = Field(min_length=1, max_length=200)
+    category: str = Field(default="General", max_length=100)
+    department: str = Field(default="", max_length=120)
+
+
+class AssetAssignmentIn(BaseModel):
+    asset_code: str = Field(min_length=1, max_length=80)
+    asset_name: str = Field(min_length=1, max_length=200)
+    employee_name: str = Field(min_length=2, max_length=150)
+    employee_email: EmailStr
+    department: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=2000)
+
+
+class AssignmentStatusIn(BaseModel):
+    status: str = Field(min_length=1, max_length=30)
+
+
+# ---------------------------------------------------------------------------
+# Password hashing and verification
+# ---------------------------------------------------------------------------
+
+def hash_password(
+    password: str,
+    salt: Optional[bytes] = None
+) -> str:
+    salt = salt or secrets.token_bytes(16)
+
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        310_000
+    )
+
+    return f"{salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
     try:
-        create_request_table()
-        create_notification_table()
-        print("DATABASE INITIALIZATION SUCCESSFUL")
-    except Exception as e:
-        print("DATABASE INITIALIZATION FAILED:", e)
-        print("Check PostgreSQL and orgaflow_db.")
+        salt_hex, digest_hex = encoded.split("$", 1)
 
-# =========================================================
-# NORMALIZE PORTAL AND ROLES
-# =========================================================
-def normalize_portal(portal):
-    if portal is None:
-        return None
-    value = str(portal).strip().lower()
-    if value == "employee":
-        return "employee"
-    if value in ["management", "manager", "admin"]:
-        return "management"
-    return None
+        calculated = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt_hex),
+            310_000
+        ).hex()
+
+        return hmac.compare_digest(calculated, digest_hex)
+
+    except (ValueError, TypeError):
+        return False
 
 
-def normalize_role(role):
-    if role is None:
-        return None
-    compact = (
-        str(role).strip().replace(" ", "").replace("_", "").lower()
-    )
-    roles = {
-        "admin": "ADMIN",
-        "assetmanager": "ASSET_MANAGER",
-        "departmenthead": "DEPARTMENT_HEAD",
-        "employee": "EMPLOYEE"
-    }
-    return roles.get(compact, str(role).strip().upper())
+# ---------------------------------------------------------------------------
+# JWT authentication
+# ---------------------------------------------------------------------------
 
+def create_access_token(user: dict) -> str:
+    now = datetime.now(timezone.utc)
 
-def normalize_database_role(role):
-    return normalize_role(role)
-
-# =========================================================
-# JWT TOKEN GENERATION
-# =========================================================
-def create_access_token(user_id, email, role, portal):
-    expire = datetime.utcnow() + timedelta(
-        minutes=JWT_EXPIRATION_MINUTES
-    )
     payload = {
-        "user_id": user_id,
-        "email": email,
-        "role": role,
-        "portal": portal,
-        "exp": expire
+        "sub": str(user["id"]),
+        "email": user["email"],
+        "role": user["role"],
+        "iat": now,
+        "exp": now + timedelta(
+            minutes=ACCESS_TOKEN_MINUTES
+        ),
     }
+
     return jwt.encode(
         payload,
-        JWT_SECRET,
+        JWT_SECRET_KEY,
         algorithm=JWT_ALGORITHM
     )
 
-# =========================================================
-# GET CURRENT USER FROM JWT
-# =========================================================
-def get_current_user(authorization: str | None):
-    if not authorization:
+
+def get_current_user(
+    authorization: Optional[str] = Header(default=None)
+) -> dict:
+
+    if (
+        not authorization
+        or not authorization.lower().startswith("bearer ")
+    ):
         raise HTTPException(
             status_code=401,
-            detail="Authorization token is required."
+            detail="Bearer access token is required."
         )
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header."
-        )
-    token = authorization[len("Bearer "):].strip()
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization token is missing."
-        )
+
+    token = authorization.split(" ", 1)[1].strip()
+
     try:
         payload = jwt.decode(
             token,
-            JWT_SECRET,
+            JWT_SECRET_KEY,
             algorithms=[JWT_ALGORITHM]
         )
-        user_id = payload.get("user_id")
-        if not user_id:
+
+        user_id = int(payload.get("sub", ""))
+
+    except (jwt.PyJWTError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired access token."
+        )
+
+    conn = get_connection()
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    full_name,
+                    email,
+                    role,
+                    department,
+                    is_active
+                FROM users
+                WHERE id = %s
+            """, (user_id,))
+
+            user = cur.fetchone()
+
+        if not user or not user["is_active"]:
             raise HTTPException(
                 status_code=401,
-                detail="Invalid token."
+                detail="User does not exist or is inactive."
             )
-        return {
-            "user_id": user_id,
-            "email": payload.get("email"),
-            "role": payload.get("role"),
-            "portal": payload.get("portal")
-        }
-    except JWTError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token."
-        )
 
-# =========================================================
-# DATABASE USER / ACTIVE USER CHECK
-# =========================================================
-def get_database_user(user_id):
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT id, name, email, role, department_id, status
-            FROM users
-            WHERE id = %s
-        """, (user_id,))
-        return cursor.fetchone()
+        return dict(user)
+
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
 
 
-def require_active_user(authorization: str | None):
-    token_user = get_current_user(authorization)
-    user = get_database_user(token_user["user_id"])
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User account not found."
+def require_roles(*allowed_roles):
+    def checker(
+        user: dict = Depends(get_current_user)
+    ):
+        role = (
+            str(user.get("role", ""))
+            .upper()
+            .replace(" ", "_")
         )
-    if str(user["status"]).strip().lower() != "active":
-        raise HTTPException(
-            status_code=403,
-            detail="User account is inactive."
-        )
-    return {
-        "token": token_user,
-        "user": user,
-        "role": normalize_database_role(user["role"])
+
+        if role not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission for this action."
+            )
+
+        return user
+
+    return checker
+
+
+def normalize_role(role: str) -> str:
+    role = role.strip().upper().replace(" ", "_")
+
+    aliases = {
+        "ASSETMANAGER": "ASSET_MANAGER",
+        "DEPARTMENTHEAD": "DEPARTMENT_HEAD",
+        "SUPERADMIN": "ADMIN",
     }
 
+    return aliases.get(role, role)
 
-def require_request_manager(authorization: str | None):
-    current = require_active_user(authorization)
-    if current["role"] not in {"ADMIN", "ASSET_MANAGER"}:
-        raise HTTPException(
-            status_code=403,
-            detail="Only Admin or Asset Manager can manage requests."
+
+# ---------------------------------------------------------------------------
+# Email helper
+# ---------------------------------------------------------------------------
+
+def send_asset_assignment_email(
+    recipient: str,
+    employee_name: str,
+    asset_code: str,
+    asset_name: str,
+    department: str,
+    description: str,
+    assignment_id: int,
+    assigned_at: str,
+):
+    smtp_host = os.getenv("SMTP_HOST", "").strip()
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "").strip()
+    smtp_password = os.getenv("SMTP_PASSWORD", "")
+    sender = os.getenv("SMTP_FROM", smtp_user).strip()
+
+    use_ssl = (
+        os.getenv("SMTP_USE_SSL", "false").lower()
+        == "true"
+    )
+
+    if not all([
+        smtp_host,
+        smtp_user,
+        smtp_password,
+        sender
+    ]):
+        raise RuntimeError(
+            "SMTP is not configured. Set SMTP_HOST, "
+            "SMTP_USER, SMTP_PASSWORD and SMTP_FROM."
         )
-    return current
 
-# =========================================================
-# REQUEST MODELS
-# =========================================================
-class AssetRequestCreate(BaseModel):
-    asset_id: str
-    asset_name: str
-    asset_category: str = ""
-    asset_brand: str = ""
-    asset_model: str = ""
-    department: str = ""
-    priority: str = "Normal"
-    description: str
+    message = EmailMessage()
+    message["Subject"] = (
+        f"Orgaflow asset assigned: {asset_code}"
+    )
+    message["From"] = sender
+    message["To"] = recipient
+
+    message.set_content(f"""Hello {employee_name},
+
+An asset has been assigned to you in Orgaflow.
+
+Assignment ID: {assignment_id}
+Asset: {asset_name}
+Asset Code: {asset_code}
+Department: {department}
+Assignment Date (UTC): {assigned_at}
+
+Purpose / Instructions:
+{description or "No additional instructions were provided."}
+
+If you believe this assignment is incorrect, contact your Asset Manager.
+
+Regards,
+Orgaflow Asset Management
+""")
+
+    if use_ssl:
+        with smtplib.SMTP_SSL(
+            smtp_host,
+            smtp_port,
+            timeout=20
+        ) as server:
+            server.login(smtp_user, smtp_password)
+            server.send_message(message)
+
+    else:
+        with smtplib.SMTP(
+            smtp_host,
+            smtp_port,
+            timeout=20
+        ) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.send_message(message)
 
 
-class RequestStatusUpdate(BaseModel):
-    status: str
-    rejection_reason: str | None = None
+# ---------------------------------------------------------------------------
+# Basic and health endpoints
+# ---------------------------------------------------------------------------
 
-# =========================================================
-# ROOT
-# =========================================================
 @app.get("/")
 def root():
     return {
         "success": True,
-        "message": "Orgaflow Backend is running",
-        "version": "1.2.0"
+        "app": APP_NAME,
+        "docs": "/docs"
     }
 
-# =========================================================
-# HEALTH CHECK
-# =========================================================
-@app.get("/api/health")
-def health_check():
-    connection = None
-    cursor = None
+
+@app.get("/health")
+def health():
+    conn = get_connection()
+
     try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("SELECT 1")
-        cursor.fetchone()
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+
         return {
             "success": True,
-            "message": "Backend and database are connected."
+            "database": "connected"
         }
-    except Exception as e:
-        print("HEALTH CHECK ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Database connection failed."
-        )
+
     finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+        conn.close()
 
-# =========================================================
-# SIGNUP
-# =========================================================
-@app.post("/api/auth/signup")
-def signup(data: dict):
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
-    department_id = data.get("department_id")
 
-    if not name or not email or not password:
-        raise HTTPException(
-            status_code=400,
-            detail="Name, email and password are required."
-        )
+# ---------------------------------------------------------------------------
+# Authentication: register
+# ---------------------------------------------------------------------------
 
-    email = email.strip().lower()
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT id FROM users
-            WHERE LOWER(email) = LOWER(%s)
-        """, (email,))
-        if cursor.fetchone():
-            raise HTTPException(
-                status_code=400,
-                detail="User already exists."
-            )
+@app.post("/api/auth/register", status_code=201)
+@app.post("/register", status_code=201)
+def register(payload: RegisterIn):
 
-        password_hash = pwd_context.hash(password)
-        cursor.execute("""
-            INSERT INTO users (
-                name, email, password_hash, role, department_id, status
-            )
-            VALUES (%s, %s, %s, 'Employee', %s, 'Active')
-            RETURNING id, name, email, role, department_id, status
-        """, (
-            name.strip(),
-            email,
-            password_hash,
-            department_id
-        ))
-        user = cursor.fetchone()
-        connection.commit()
-        return {
-            "success": True,
-            "message": "Signup successful.",
-            "user": user
-        }
-    except HTTPException:
-        connection.rollback()
-        raise
-    except Exception as e:
-        connection.rollback()
-        print("SIGNUP ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Signup failed."
-        )
-    finally:
-        cursor.close()
-        connection.close()
-
-# =========================================================
-# EMAIL / PASSWORD LOGIN
-# =========================================================
-@app.post("/api/auth/login")
-def login(data: dict):
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not password:
-        raise HTTPException(
-            status_code=400,
-            detail="Email and password are required."
-        )
-
-    email = email.strip().lower()
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT id, name, email, password_hash,
-                   role, department_id, status
-            FROM users
-            WHERE LOWER(email) = LOWER(%s)
-        """, (email,))
-        user = cursor.fetchone()
-
-        if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password."
-            )
-
-        password_hash = user.get("password_hash")
-        if not password_hash:
-            raise HTTPException(
-                status_code=401,
-                detail="This account uses Google login."
-            )
-
-        if not pwd_context.verify(password, password_hash):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password."
-            )
-
-        if str(user["status"]).strip().lower() != "active":
-            raise HTTPException(
-                status_code=403,
-                detail="User account is inactive."
-            )
-
-        database_role = normalize_database_role(user["role"])
-        token = create_access_token(
-            user["id"],
-            user["email"],
-            database_role,
-            "employee"
-        )
-        return {
-            "success": True,
-            "message": "Login successful.",
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user["id"],
-                "name": user["name"],
-                "email": user["email"],
-                "role": database_role,
-                "department_id": user["department_id"],
-                "status": user["status"]
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print("LOGIN ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Login failed."
-        )
-    finally:
-        cursor.close()
-        connection.close()
-
-# =========================================================
-# VERIFY PORTAL AND ROLE
-# =========================================================
-def verify_portal_and_role(portal, selected_role, database_role):
-    portal = normalize_portal(portal)
-    selected_role = normalize_role(selected_role)
-    database_role = normalize_database_role(database_role)
-
-    if not portal:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid portal."
-        )
-
-    if portal == "employee":
-        if database_role not in {"EMPLOYEE", "ADMIN"}:
-            raise HTTPException(
-                status_code=403,
-                detail="This account is not allowed to access Employee portal."
-            )
-        return
-
-    if portal == "management":
-        allowed_roles = {
-            "ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD"
-        }
-        if not selected_role:
-            raise HTTPException(
-                status_code=400,
-                detail="Management role is required."
-            )
-        if selected_role not in allowed_roles:
-            raise HTTPException(
-                status_code=403,
-                detail="Invalid management role."
-            )
-        if database_role not in allowed_roles:
-            raise HTTPException(
-                status_code=403,
-                detail="This account is not authorized for Management portal."
-            )
-        if selected_role != database_role:
-            raise HTTPException(
-                status_code=403,
-                detail="Selected management role does not match the account role."
-            )
-
-# =========================================================
-# GOOGLE LOGIN
-# =========================================================
-@app.post("/api/auth/google-login")
-def google_login(data: dict):
-    credential = data.get("id_token") or data.get("credential")
-    portal = normalize_portal(data.get("portal"))
-    selected_role = normalize_role(data.get("role"))
-
-    if not credential:
-        raise HTTPException(
-            status_code=400,
-            detail="Google ID token is required."
-        )
-    if not portal:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid portal."
-        )
+    email = str(payload.email).strip().lower()
+    conn = get_connection()
 
     try:
-        google_user = id_token.verify_oauth2_token(
-            credential,
-            requests.Request(),
-            GOOGLE_CLIENT_ID
-        )
-    except Exception as e:
-        print("GOOGLE TOKEN VERIFICATION ERROR:", e)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Google ID token."
-        )
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
 
-    google_id = google_user.get("sub")
-    email = google_user.get("email")
-    name = google_user.get("name")
+            cur.execute(
+                "SELECT id FROM users WHERE email = %s",
+                (email,)
+            )
 
-    if not google_id or not email:
-        raise HTTPException(
-            status_code=400,
-            detail="Google account information is incomplete."
-        )
-
-    email = email.strip().lower()
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT id, name, email, password_hash,
-                   role, department_id, status
-            FROM users
-            WHERE LOWER(email) = LOWER(%s)
-        """, (email,))
-        user = cursor.fetchone()
-
-        if not user:
-            if portal == "management":
+            if cur.fetchone():
                 raise HTTPException(
-                    status_code=403,
+                    status_code=409,
                     detail=(
-                        "Management access is unavailable for this Google account. "
-                        "Ask an administrator to assign a management role."
+                        "An account with this email "
+                        "already exists."
                     )
                 )
 
-            cursor.execute("""
+            cur.execute("""
                 INSERT INTO users (
-                    name, email, password_hash, role, status
+                    full_name,
+                    email,
+                    password_hash,
+                    role,
+                    department
                 )
-                VALUES (%s, %s, NULL, 'Employee', 'Active')
-                RETURNING id, name, email, role, department_id, status
-            """, (name or "Employee", email))
-            user = cursor.fetchone()
-
-        database_role = normalize_database_role(user["role"])
-        if str(user["status"]).strip().lower() != "active":
-            raise HTTPException(
-                status_code=403,
-                detail="User account is inactive."
-            )
-
-        verify_portal_and_role(
-            portal,
-            selected_role,
-            database_role
-        )
-
-        cursor.execute("""
-            SELECT id FROM oauth_users
-            WHERE LOWER(email) = LOWER(%s)
-        """, (email,))
-        oauth_user = cursor.fetchone()
-
-        if oauth_user:
-            cursor.execute("""
-                UPDATE oauth_users
-                SET user_id = %s,
-                    google_id = %s,
-                    name = %s,
-                    portal = %s,
-                    role = NULL,
-                    status = %s
-                WHERE id = %s
+                VALUES (%s, %s, %s, 'EMPLOYEE', %s)
+                RETURNING
+                    id,
+                    full_name,
+                    email,
+                    role,
+                    department
             """, (
-                user["id"],
-                google_id,
-                name or user["name"],
-                portal,
-                user["status"],
-                oauth_user["id"]
-            ))
-        else:
-            cursor.execute("""
-                INSERT INTO oauth_users (
-                    user_id, google_id, email, name,
-                    portal, role, status
-                )
-                VALUES (%s, %s, %s, %s, %s, NULL, %s)
-            """, (
-                user["id"],
-                google_id,
+                payload.full_name.strip(),
                 email,
-                name or user["name"],
-                portal,
-                user["status"]
+                hash_password(payload.password),
+                payload.department.strip()
             ))
 
-        connection.commit()
+            user = dict(cur.fetchone())
 
-        # This is the backend JWT used by protected APIs.
-        access_token = create_access_token(
-            user["id"],
-            user["email"],
-            database_role,
-            portal
-        )
+        conn.commit()
+
+        token = create_access_token(user)
 
         return {
             "success": True,
-            "message": "Google login successful.",
-            "access_token": access_token,
+            "access_token": token,
+            "token": token,
             "token_type": "bearer",
-            "user": {
-                "id": user["id"],
-                "name": user["name"],
-                "email": user["email"],
-                "role": database_role,
-                "department_id": user["department_id"],
-                "status": user["status"],
-                "portal": portal
-            }
+            "user": user,
+            **user,
         }
+
     except HTTPException:
-        connection.rollback()
+        conn.rollback()
         raise
-    except Exception as e:
-        connection.rollback()
-        print("GOOGLE LOGIN DATABASE ERROR:", e)
+
+    except psycopg2.Error as exc:
+        conn.rollback()
+
+        print(
+            f"[REGISTER DATABASE ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+
         raise HTTPException(
             status_code=500,
-            detail="Google login failed."
-        )
+            detail="Could not create the account."
+        ) from exc
+
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
 
-# =========================================================
-# CREATE ASSET REQUEST
-# =========================================================
-@app.post("/api/requests")
-def create_asset_request(
-    data: AssetRequestCreate,
-    authorization: str | None = Header(default=None)
-):
-    current = require_active_user(authorization)
-    user = current["user"]
 
-    if current["role"] not in {"EMPLOYEE", "ADMIN"}:
-        raise HTTPException(
-            status_code=403,
-            detail="Only Employee accounts can create asset requests."
-        )
+# ---------------------------------------------------------------------------
+# Authentication: login
+# ---------------------------------------------------------------------------
 
-    asset_id = data.asset_id.strip()
-    asset_name = data.asset_name.strip()
-    description = data.description.strip()
+@app.post("/api/auth/login")
+@app.post("/login")
+def login(payload: LoginIn):
 
-    if not asset_id or not asset_name or not description:
-        raise HTTPException(
-            status_code=400,
-            detail="Asset ID, asset name and description are required."
-        )
+    email = str(payload.email).strip().lower()
+    conn = get_connection()
 
-    priority = data.priority.strip() if data.priority else "Normal"
-    allowed_priorities = {
-        "Normal", "Urgent", "Low", "Medium", "High"
-    }
-    if priority not in allowed_priorities:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid priority."
-        )
-
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
     try:
-        cursor.execute("""
-            INSERT INTO asset_requests (
-                request_code, user_id, employee_name, employee_email,
-                department, asset_id, asset_name, asset_category,
-                asset_brand, asset_model, priority, description, status
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    full_name,
+                    email,
+                    password_hash,
+                    role,
+                    department,
+                    is_active
+                FROM users
+                WHERE email = %s
+            """, (email,))
+
+            row = cur.fetchone()
+
+        if (
+            not row
+            or not verify_password(
+                payload.password,
+                row["password_hash"]
             )
-            VALUES (
-                'TEMP', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                'Pending'
-            )
-            RETURNING id
-        """, (
-            user["id"],
-            user["name"],
-            user["email"],
-            data.department.strip() if data.department else None,
-            asset_id,
-            asset_name,
-            data.asset_category.strip() if data.asset_category else None,
-            data.asset_brand.strip() if data.asset_brand else None,
-            data.asset_model.strip() if data.asset_model else None,
-            priority,
-            description
-        ))
-
-        created = cursor.fetchone()
-        request_id = created["id"]
-        request_code = f"REQ-{1000 + request_id}"
-
-        cursor.execute("""
-            UPDATE asset_requests
-            SET request_code = %s
-            WHERE id = %s
-        """, (request_code, request_id))
-
-        cursor.execute("""
-            SELECT * FROM asset_requests WHERE id = %s
-        """, (request_id,))
-        request = cursor.fetchone()
-
-        connection.commit()
-        return {
-            "success": True,
-            "message": "Asset request submitted successfully.",
-            "request": request
-        }
-    except Exception as e:
-        connection.rollback()
-        print("CREATE REQUEST ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to create asset request."
-        )
-    finally:
-        cursor.close()
-        connection.close()
-
-# =========================================================
-# GET ALL REQUESTS - MANAGER / ADMIN
-# =========================================================
-@app.get("/api/requests")
-def get_all_requests(
-    authorization: str | None = Header(default=None)
-):
-    require_request_manager(authorization)
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT * FROM asset_requests
-            ORDER BY created_at DESC
-        """)
-        requests_data = cursor.fetchall()
-        return {
-            "success": True,
-            "count": len(requests_data),
-            "requests": requests_data
-        }
-    except Exception as e:
-        print("GET ALL REQUESTS ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to load asset requests."
-        )
-    finally:
-        cursor.close()
-        connection.close()
-
-# =========================================================
-# GET MY REQUESTS - CURRENT USER ONLY
-# =========================================================
-@app.get("/api/requests/my")
-def get_my_requests(
-    authorization: str | None = Header(default=None)
-):
-    current = require_active_user(authorization)
-    user = current["user"]
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT * FROM asset_requests
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-        """, (user["id"],))
-        requests_data = cursor.fetchall()
-        return {
-            "success": True,
-            "count": len(requests_data),
-            "requests": requests_data
-        }
-    except Exception as e:
-        print("GET MY REQUESTS ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to load your asset requests."
-        )
-    finally:
-        cursor.close()
-        connection.close()
-
-# =========================================================
-# GET SINGLE REQUEST
-# =========================================================
-@app.get("/api/requests/{request_id}")
-def get_single_request(
-    request_id: int,
-    authorization: str | None = Header(default=None)
-):
-    current = require_active_user(authorization)
-    user = current["user"]
-    role = current["role"]
-
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            SELECT * FROM asset_requests
-            WHERE id = %s
-        """, (request_id,))
-        request = cursor.fetchone()
-
-        if not request:
+        ):
             raise HTTPException(
-                status_code=404,
-                detail="Request not found."
+                status_code=401,
+                detail="Incorrect email or password."
             )
 
-        if role == "EMPLOYEE":
-            if request["user_id"] != user["id"]:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You are not allowed to view this request."
-                )
-        elif role not in {"ADMIN", "ASSET_MANAGER"}:
+        if not row["is_active"]:
             raise HTTPException(
                 status_code=403,
-                detail="You are not authorized to view this request."
+                detail="This account is inactive."
             )
+
+        user = {
+            "id": row["id"],
+            "full_name": row["full_name"],
+            "email": row["email"],
+            "role": row["role"],
+            "department": row["department"],
+        }
+
+        token = create_access_token(user)
 
         return {
             "success": True,
-            "request": request
+            "access_token": token,
+            "token": token,
+            "token_type": "bearer",
+            "user": user,
+            **user,
         }
+
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Current logged-in user
+# ---------------------------------------------------------------------------
+
+@app.get("/api/auth/me")
+@app.get("/me")
+def me(
+    user: dict = Depends(get_current_user)
+):
+    return {
+        "success": True,
+        "user": user,
+        **user
+    }
+
+
+# ---------------------------------------------------------------------------
+# List assets
+# ---------------------------------------------------------------------------
+
+@app.get("/api/assets")
+def list_assets(
+    user: dict = Depends(get_current_user)
+):
+    conn = get_connection()
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    asset_code,
+                    asset_name,
+                    category,
+                    department,
+                    status,
+                    created_at,
+                    updated_at
+                FROM assets
+                ORDER BY id DESC
+            """)
+
+            rows = [
+                dict(row)
+                for row in cur.fetchall()
+            ]
+
+        return {
+            "success": True,
+            "assets": rows,
+            "items": rows
+        }
+
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Create asset
+# ---------------------------------------------------------------------------
+
+@app.post("/api/assets", status_code=201)
+def create_asset(
+    payload: AssetIn,
+    user: dict = Depends(
+        require_roles("ADMIN", "ASSET_MANAGER")
+    ),
+):
+    conn = get_connection()
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                INSERT INTO assets (
+                    asset_code,
+                    asset_name,
+                    category,
+                    department,
+                    status
+                )
+                VALUES (%s, %s, %s, %s, 'Available')
+                RETURNING
+                    id,
+                    asset_code,
+                    asset_name,
+                    category,
+                    department,
+                    status,
+                    created_at
+            """, (
+                payload.asset_code.strip(),
+                payload.asset_name.strip(),
+                payload.category.strip(),
+                payload.department.strip()
+            ))
+
+            row = dict(cur.fetchone())
+
+            cur.execute("""
+                INSERT INTO audit_logs (
+                    actor_user_id,
+                    action,
+                    details
+                )
+                VALUES (%s, 'ASSET_CREATED', %s::jsonb)
+            """, (
+                user["id"],
+                psycopg2.extras.Json({
+                    "asset_code": payload.asset_code.strip()
+                })
+            ))
+
+        conn.commit()
+
+        return {
+            "success": True,
+            "asset": row,
+            **row
+        }
+
+    except psycopg2.errors.UniqueViolation as exc:
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=409,
+            detail="An asset with this code already exists."
+        ) from exc
+
+    except psycopg2.Error as exc:
+        conn.rollback()
+
+        print(
+            f"[CREATE ASSET ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Could not create asset."
+        ) from exc
+
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Assign asset to an employee and send email
+# ---------------------------------------------------------------------------
+
+@app.post("/api/assets/assign", status_code=201)
+def assign_asset(
+    payload: AssetAssignmentIn,
+    user: dict = Depends(
+        require_roles("ADMIN", "ASSET_MANAGER")
+    ),
+):
+    asset_code = payload.asset_code.strip()
+    asset_name = payload.asset_name.strip()
+    employee_email = (
+        str(payload.employee_email).strip().lower()
+    )
+
+    conn = get_connection()
+    assignment = None
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            # Check whether the asset exists.
+            cur.execute("""
+                SELECT id, asset_name, status
+                FROM assets
+                WHERE asset_code = %s
+                FOR UPDATE
+            """, (asset_code,))
+
+            asset = cur.fetchone()
+
+            # If it does not exist, create it for local testing.
+            if not asset:
+                cur.execute("""
+                    INSERT INTO assets (
+                        asset_code,
+                        asset_name,
+                        status
+                    )
+                    VALUES (%s, %s, 'Available')
+                    RETURNING id, asset_name, status
+                """, (asset_code, asset_name))
+
+                asset = cur.fetchone()
+
+            # Do not assign the same asset twice.
+            if asset["status"] == "Assigned":
+
+                cur.execute("""
+                    SELECT id
+                    FROM asset_assignments
+                    WHERE asset_code = %s
+                      AND status = 'Assigned'
+                    LIMIT 1
+                """, (asset_code,))
+
+                if cur.fetchone():
+                    raise HTTPException(
+                        status_code=409,
+                        detail="This asset is already assigned."
+                    )
+
+            cur.execute("""
+                INSERT INTO asset_assignments (
+                    asset_code,
+                    asset_name,
+                    employee_name,
+                    employee_email,
+                    department,
+                    description,
+                    status,
+                    assigned_by
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, 'Assigned', %s
+                )
+                RETURNING id, assigned_at
+            """, (
+                asset_code,
+                asset_name,
+                payload.employee_name.strip(),
+                employee_email,
+                payload.department.strip(),
+                payload.description.strip(),
+                user["id"]
+            ))
+
+            assignment = dict(cur.fetchone())
+
+            # Update inventory status.
+            cur.execute("""
+                UPDATE assets
+                SET status = 'Assigned',
+                    updated_at = NOW()
+                WHERE asset_code = %s
+            """, (asset_code,))
+
+            # Add audit log.
+            cur.execute("""
+                INSERT INTO audit_logs (
+                    actor_user_id,
+                    action,
+                    details
+                )
+                VALUES (%s, 'ASSET_ASSIGNED', %s::jsonb)
+            """, (
+                user["id"],
+                psycopg2.extras.Json({
+                    "assignment_id": assignment["id"],
+                    "asset_code": asset_code,
+                    "employee_email": employee_email,
+                })
+            ))
+
+        conn.commit()
+
     except HTTPException:
+        conn.rollback()
         raise
-    except Exception as e:
-        print("GET SINGLE REQUEST ERROR:", e)
+
+    except psycopg2.errors.UniqueViolation as exc:
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This asset already has an active assignment."
+            )
+        ) from exc
+
+    except psycopg2.Error as exc:
+        conn.rollback()
+
+        print(
+            f"[ASSIGNMENT DATABASE ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+
         raise HTTPException(
             status_code=500,
-            detail="Unable to load request."
-        )
+            detail="Database error while saving the assignment."
+        ) from exc
+
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
 
-# =========================================================
-# APPROVE / REJECT REQUEST + NOTIFICATION
-# =========================================================
-@app.patch("/api/requests/{request_id}/status")
-def update_request_status(
-    request_id: int,
-    data: RequestStatusUpdate,
-    authorization: str | None = Header(default=None)
-):
-    current = require_request_manager(authorization)
-    manager = current["user"]
+    assigned_at = (
+        assignment["assigned_at"]
+        .astimezone(timezone.utc)
+        .isoformat()
+    )
 
-    status = data.status.strip().lower()
-    if status in ["approved", "approve"]:
-        new_status = "Approved"
-    elif status in [
-        "rejected", "reject", "not approved",
-        "not_approved", "notapproved"
-    ]:
-        new_status = "Rejected"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Status must be Approved or Rejected."
-        )
+    # The assignment is saved even if email delivery fails.
+    email_sent = False
 
-    rejection_reason = None
-    if new_status == "Rejected":
-        rejection_reason = (
-            data.rejection_reason.strip()
-            if data.rejection_reason
-            else ""
-        )
-        if not rejection_reason:
-            raise HTTPException(
-                status_code=400,
-                detail="Rejection reason is required."
-            )
-
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
     try:
-        cursor.execute("""
-            SELECT id, request_code, user_id, employee_name,
-                   employee_email, asset_name, status
-            FROM asset_requests
-            WHERE id = %s
-            FOR UPDATE
-        """, (request_id,))
-        request = cursor.fetchone()
+        send_asset_assignment_email(
+            recipient=employee_email,
+            employee_name=payload.employee_name.strip(),
+            asset_code=asset_code,
+            asset_name=asset_name,
+            department=payload.department.strip(),
+            description=payload.description.strip(),
+            assignment_id=int(assignment["id"]),
+            assigned_at=assigned_at,
+        )
 
-        if not request:
-            raise HTTPException(
-                status_code=404,
-                detail="Request not found."
-            )
+        email_sent = True
+        message = "Assignment saved and email sent."
 
-        if str(request["status"]).strip().lower() != "pending":
-            raise HTTPException(
-                status_code=409,
-                detail="This request has already been reviewed."
-            )
+    except Exception as exc:
+        message = (
+            "Assignment saved, but email delivery failed. "
+            "Check SMTP settings."
+        )
 
-        cursor.execute("""
-            UPDATE asset_requests
-            SET status = %s,
-                rejection_reason = %s,
-                reviewed_at = CURRENT_TIMESTAMP,
-                reviewed_by = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s
-            RETURNING *
-        """, (
-            new_status,
-            rejection_reason,
-            manager["id"],
-            request_id
-        ))
-        updated_request = cursor.fetchone()
+        print(
+            f"[ASSET ASSIGNMENT EMAIL ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
 
-        if new_status == "Approved":
-            title = "Asset Request Approved"
-            message = (
-                f"Your request {request['request_code']} for "
-                f"{request['asset_name']} has been approved."
-            )
-            notification_type = "request_approved"
-        else:
-            title = "Asset Request Rejected"
-            message = (
-                f"Your request {request['request_code']} for "
-                f"{request['asset_name']} has been rejected. "
-                f"Reason: {rejection_reason}"
-            )
-            notification_type = "request_rejected"
+    return {
+        "success": True,
+        "assignment_id": int(assignment["id"]),
+        "id": int(assignment["id"]),
+        "asset_code": asset_code,
+        "asset_name": asset_name,
+        "employee_name": payload.employee_name.strip(),
+        "employee_email": employee_email,
+        "department": payload.department.strip(),
+        "description": payload.description.strip(),
+        "status": "Assigned",
+        "assigned_at": assigned_at,
+        "email_sent": email_sent,
+        "message": message,
+    }
 
-        cursor.execute("""
-            INSERT INTO notifications (
-                user_id, title, message, notification_type, request_id
-            )
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id, created_at
-        """, (
-            request["user_id"],
-            title,
-            message,
-            notification_type,
-            request_id
-        ))
-        notification = cursor.fetchone()
 
-        connection.commit()
-        print("REQUEST STATUS UPDATED:", new_status)
-        print("REQUEST:", request["request_code"])
-        print("NOTIFICATION ID:", notification["id"])
+# ---------------------------------------------------------------------------
+# List all assignments
+# ---------------------------------------------------------------------------
+
+@app.get("/api/assets/assignments")
+def list_assignments(
+    user: dict = Depends(
+        require_roles(
+            "ADMIN",
+            "ASSET_MANAGER",
+            "DEPARTMENT_HEAD"
+        )
+    )
+):
+    conn = get_connection()
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    asset_code,
+                    asset_name,
+                    employee_name,
+                    employee_email,
+                    department,
+                    description,
+                    status,
+                    assigned_by,
+                    assigned_at,
+                    returned_at
+                FROM asset_assignments
+                ORDER BY assigned_at DESC
+            """)
+
+            rows = [
+                dict(row)
+                for row in cur.fetchall()
+            ]
 
         return {
             "success": True,
-            "message": (
-                "Request approved and employee notified."
-                if new_status == "Approved"
-                else "Request rejected and employee notified."
-            ),
-            "request": updated_request,
-            "notification_created": True
+            "assignments": rows,
+            "items": rows
         }
+
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Update assignment status
+# ---------------------------------------------------------------------------
+
+@app.patch(
+    "/api/assets/assignments/{assignment_id}/status"
+)
+def update_assignment_status(
+    assignment_id: int,
+    payload: AssignmentStatusIn,
+    user: dict = Depends(
+        require_roles("ADMIN", "ASSET_MANAGER")
+    ),
+):
+    status = payload.status.strip().title()
+
+    if status not in {
+        "Assigned",
+        "Returned",
+        "Cancelled"
+    }:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Status must be Assigned, Returned, or Cancelled."
+            )
+        )
+
+    conn = get_connection()
+
+    try:
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                UPDATE asset_assignments
+                SET
+                    status = %s,
+                    returned_at = CASE
+                        WHEN %s IN ('Returned', 'Cancelled')
+                        THEN NOW()
+                        ELSE NULL
+                    END
+                WHERE id = %s
+                RETURNING asset_code
+            """, (
+                status,
+                status,
+                assignment_id
+            ))
+
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Assignment not found."
+                )
+
+            new_asset_status = (
+                "Assigned"
+                if status == "Assigned"
+                else "Available"
+            )
+
+            cur.execute("""
+                UPDATE assets
+                SET status = %s,
+                    updated_at = NOW()
+                WHERE asset_code = %s
+            """, (
+                new_asset_status,
+                row["asset_code"]
+            ))
+
+        conn.commit()
+
+        return {
+            "success": True,
+            "assignment_id": assignment_id,
+            "status": status
+        }
+
     except HTTPException:
-        connection.rollback()
+        conn.rollback()
         raise
-    except Exception as e:
-        connection.rollback()
-        print("UPDATE REQUEST STATUS ERROR:", e)
+
+    except psycopg2.Error as exc:
+        conn.rollback()
+
+        print(
+            f"[UPDATE ASSIGNMENT ERROR] "
+            f"{type(exc).__name__}: {exc}"
+        )
+
         raise HTTPException(
             status_code=500,
-            detail="Unable to update request status."
-        )
-    finally:
-        cursor.close()
-        connection.close()
+            detail="Could not update assignment status."
+        ) from exc
 
-# =========================================================
-# REQUEST STATISTICS
-# =========================================================
-@app.get("/api/requests/stats")
-def get_request_stats(
-    authorization: str | None = Header(default=None)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# List assets assigned to the logged-in employee
+# ---------------------------------------------------------------------------
+
+@app.get("/api/assets/my")
+def my_assets(
+    user: dict = Depends(get_current_user)
 ):
-    require_request_manager(authorization)
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
+    conn = get_connection()
+
     try:
-        cursor.execute("""
-            SELECT
-                COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE status = 'Pending') AS pending,
-                COUNT(*) FILTER (WHERE status = 'Approved') AS approved,
-                COUNT(*) FILTER (WHERE status = 'Rejected') AS rejected
-            FROM asset_requests
-        """)
-        stats = cursor.fetchone()
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    asset_code,
+                    asset_name,
+                    department,
+                    description,
+                    status,
+                    assigned_at
+                FROM asset_assignments
+                WHERE lower(employee_email) = lower(%s)
+                  AND status = 'Assigned'
+                ORDER BY assigned_at DESC
+            """, (user["email"],))
+
+            rows = [
+                dict(row)
+                for row in cur.fetchall()
+            ]
+
         return {
             "success": True,
-            "stats": {
-                "total": stats["total"],
-                "pending": stats["pending"],
-                "approved": stats["approved"],
-                "rejected": stats["rejected"]
-            }
+            "assets": rows,
+            "items": rows
         }
-    except Exception as e:
-        print("REQUEST STATS ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to load request statistics."
-        )
-    finally:
-        cursor.close()
-        connection.close()
 
-# =========================================================
-# GET MY NOTIFICATIONS
-# =========================================================
-@app.get("/api/notifications/me")
-def get_my_notifications(
-    authorization: str | None = Header(default=None)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Audit logs
+# ---------------------------------------------------------------------------
+
+@app.get("/api/audit-logs")
+def list_audit_logs(
+    user: dict = Depends(
+        require_roles("ADMIN", "ASSET_MANAGER")
+    )
 ):
-    current = require_active_user(authorization)
-    user = current["user"]
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
+    conn = get_connection()
+
     try:
-        cursor.execute("""
-            SELECT id, title, message, notification_type,
-                   request_id, is_read, created_at
-            FROM notifications
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT 100
-        """, (user["id"],))
-        notifications = cursor.fetchall()
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    a.id,
+                    a.action,
+                    a.details,
+                    a.created_at,
+                    u.full_name AS actor_name,
+                    u.email AS actor_email
+                FROM audit_logs a
+                LEFT JOIN users u
+                    ON u.id = a.actor_user_id
+                ORDER BY a.created_at DESC
+                LIMIT 500
+            """)
+
+            rows = [
+                dict(row)
+                for row in cur.fetchall()
+            ]
+
         return {
             "success": True,
-            "count": len(notifications),
-            "notifications": notifications
+            "logs": rows,
+            "items": rows
         }
-    except Exception as e:
-        print("GET NOTIFICATIONS ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to load notifications."
-        )
-    finally:
-        cursor.close()
-        connection.close()
 
-# =========================================================
-# GET UNREAD NOTIFICATION COUNT
-# =========================================================
-@app.get("/api/notifications/unread-count")
-def get_unread_notification_count(
-    authorization: str | None = Header(default=None)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Admin: list users
+# ---------------------------------------------------------------------------
+
+@app.get("/api/users")
+def list_users(
+    user: dict = Depends(require_roles("ADMIN"))
 ):
-    current = require_active_user(authorization)
-    user = current["user"]
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
+    conn = get_connection()
+
     try:
-        cursor.execute("""
-            SELECT COUNT(*) AS unread_count
-            FROM notifications
-            WHERE user_id = %s AND is_read = FALSE
-        """, (user["id"],))
-        result = cursor.fetchone()
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    full_name,
+                    email,
+                    role,
+                    department,
+                    is_active,
+                    created_at
+                FROM users
+                ORDER BY id DESC
+            """)
+
+            rows = [
+                dict(row)
+                for row in cur.fetchall()
+            ]
+
         return {
             "success": True,
-            "unread_count": result["unread_count"]
+            "users": rows,
+            "items": rows
         }
-    except Exception as e:
-        print("UNREAD COUNT ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to load unread count."
-        )
+
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
 
-# =========================================================
-# MARK ONE NOTIFICATION AS READ
-# =========================================================
-@app.patch("/api/notifications/{notification_id}/read")
-def mark_notification_as_read(
-    notification_id: int,
-    authorization: str | None = Header(default=None)
+
+# ---------------------------------------------------------------------------
+# Admin: update a user's role
+# ---------------------------------------------------------------------------
+
+@app.patch("/api/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    role: str,
+    user: dict = Depends(require_roles("ADMIN")),
 ):
-    current = require_active_user(authorization)
-    user = current["user"]
-    connection = get_connection()
-    cursor = connection.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("""
-            UPDATE notifications
-            SET is_read = TRUE
-            WHERE id = %s AND user_id = %s
-            RETURNING id, is_read
-        """, (notification_id, user["id"]))
-        notification = cursor.fetchone()
+    normalized = normalize_role(role)
 
-        if not notification:
-            raise HTTPException(
-                status_code=404,
-                detail="Notification not found."
+    allowed = {
+        "ADMIN",
+        "ASSET_MANAGER",
+        "DEPARTMENT_HEAD",
+        "EMPLOYEE"
+    }
+
+    if normalized not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Role must be one of: "
+                + ", ".join(sorted(allowed))
             )
-
-        connection.commit()
-        return {
-            "success": True,
-            "message": "Notification marked as read.",
-            "notification": notification
-        }
-    except HTTPException:
-        connection.rollback()
-        raise
-    except Exception as e:
-        connection.rollback()
-        print("MARK NOTIFICATION READ ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to mark notification as read."
         )
-    finally:
-        cursor.close()
-        connection.close()
 
-# =========================================================
-# MARK ALL NOTIFICATIONS AS READ
-# =========================================================
-@app.patch("/api/notifications/read-all")
-def mark_all_notifications_as_read(
-    authorization: str | None = Header(default=None)
-):
-    current = require_active_user(authorization)
-    user = current["user"]
-    connection = get_connection()
-    cursor = connection.cursor()
+    conn = get_connection()
+
     try:
-        cursor.execute("""
-            UPDATE notifications
-            SET is_read = TRUE
-            WHERE user_id = %s AND is_read = FALSE
-        """, (user["id"],))
-        updated_count = cursor.rowcount
-        connection.commit()
+        with conn.cursor(
+            cursor_factory=RealDictCursor
+        ) as cur:
+
+            cur.execute("""
+                UPDATE users
+                SET role = %s
+                WHERE id = %s
+                RETURNING
+                    id,
+                    full_name,
+                    email,
+                    role,
+                    department,
+                    is_active
+            """, (
+                normalized,
+                user_id
+            ))
+
+            row = cur.fetchone()
+
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found."
+                )
+
+        conn.commit()
+
         return {
             "success": True,
-            "message": "All notifications marked as read.",
-            "updated_count": updated_count
+            "user": dict(row)
         }
-    except Exception as e:
-        connection.rollback()
-        print("MARK ALL NOTIFICATIONS READ ERROR:", e)
+
+    except HTTPException:
+        conn.rollback()
+        raise
+
+    except psycopg2.Error as exc:
+        conn.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail="Unable to mark notifications as read."
-        )
+            detail="Could not update user role."
+        ) from exc
+
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
