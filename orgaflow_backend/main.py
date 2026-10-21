@@ -9,6 +9,9 @@ from jose import jwt, JWTError
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # =========================================================
 # APP CONFIG
@@ -36,7 +39,7 @@ DB_HOST = os.getenv("ORGAFLOW_DB_HOST", "localhost")
 DB_PORT = int(os.getenv("ORGAFLOW_DB_PORT", "5432"))
 DB_NAME = os.getenv("ORGAFLOW_DB_NAME", "orgaflow_db")
 DB_USER = os.getenv("ORGAFLOW_DB_USER", "postgres")
-DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "mehra")
+DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "")
 
 # =========================================================
 # GOOGLE CONFIG
