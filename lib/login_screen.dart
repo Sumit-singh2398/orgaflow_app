@@ -101,7 +101,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // BACKEND CONFIGURATION
 
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static const String baseUrl = 'https://orgaflow-app.onrender.com';
 
   static const String googleServerClientId =
       '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com';
