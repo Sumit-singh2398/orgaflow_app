@@ -16,7 +16,7 @@ class AssetManagerAssignPage extends StatefulWidget {
 
 class _AssetManagerAssignPageState extends State<AssetManagerAssignPage> {
   // Android emulator. For a physical phone, use your computer's LAN IP.
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = 'https://orgaflow-app.onrender.com';
 
   static const Color primary = Color(0xFF3B5BDB);
   static const Color background = Color(0xFFF4F6FB);
