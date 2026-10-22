@@ -27,7 +27,7 @@ class _AssetManagerScanPageState extends State<AssetManagerScanPage> {
 
   // Android emulator URL.
   // Real phone par laptop ka LAN IP ya deployed backend URL use karein.
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = 'https://orgaflow-app.onrender.com';
 
   final TextEditingController codeController = TextEditingController();
 
