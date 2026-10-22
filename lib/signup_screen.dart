@@ -151,7 +151,7 @@ class _SignupScreenState extends State<SignupScreen> {
       // 127.0.0.1 when backend is running on your PC.
 
       final url = Uri.parse(
-        'http://127.0.0.1:8000/api/auth/signup',
+        'https://orgaflow-app.onrender.com/api/auth/signup',
       );
 
       // ==========================================================
