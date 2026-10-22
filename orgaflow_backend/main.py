@@ -44,9 +44,9 @@ DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "")
 # =========================================================
 # GOOGLE CONFIG
 # =========================================================
-GOOGLE_CLIENT_ID = os.getenv(
-    "GOOGLE_CLIENT_ID",
-    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = (
+    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3"
+    ".apps.googleusercontent.com"
 )
 
 # =========================================================
@@ -180,70 +180,6 @@ def create_notification_table():
             connection.close()
 
 # =========================================================
-# CREATE GOOGLE OAUTH LINK TABLE
-# =========================================================
-def create_oauth_users_table():
-    """Create the Google identity mapping table if it does not exist."""
-    connection = None
-    cursor = None
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS oauth_users (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                google_id VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL,
-                name VARCHAR(255),
-                portal VARCHAR(30) NOT NULL DEFAULT 'employee',
-                role VARCHAR(50),
-                status VARCHAR(30) NOT NULL DEFAULT 'Active',
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # Check duplicates before creating the unique email index.
-        cursor.execute("""
-            SELECT LOWER(email) AS normalized_email, COUNT(*) AS duplicate_count
-            FROM oauth_users
-            GROUP BY LOWER(email)
-            HAVING COUNT(*) > 1
-            LIMIT 10
-        """)
-        duplicate_emails = cursor.fetchall()
-
-        if duplicate_emails:
-            duplicates = [row[0] for row in duplicate_emails]
-            raise RuntimeError(
-                "Duplicate email records exist in oauth_users. "
-                "Resolve these records before creating the unique index: "
-                + ", ".join(duplicates)
-            )
-
-        cursor.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_users_email_lower
-            ON oauth_users (LOWER(email))
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_oauth_users_user_id
-            ON oauth_users (user_id)
-        """)
-        connection.commit()
-        print("OAUTH USERS TABLE READY")
-    except Exception as e:
-        if connection:
-            connection.rollback()
-        print("OAUTH USERS TABLE ERROR:", e)
-        raise
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-# =========================================================
 # STARTUP
 # =========================================================
 @app.on_event("startup")
@@ -252,7 +188,6 @@ def startup_event():
     try:
         create_request_table()
         create_notification_table()
-        create_oauth_users_table()
         print("DATABASE INITIALIZATION SUCCESSFUL")
     except Exception as e:
         print("DATABASE INITIALIZATION FAILED:", e)
@@ -383,25 +318,6 @@ def require_active_user(authorization: str | None):
     if str(user["status"]).strip().lower() != "active":
         raise HTTPException(
             status_code=403,
-            detail="Your account is not active."
-        )
-    return {
-        "token": token_user,
-        "user": user
-    }
-
-
-def require_active_user(authorization: str | None):
-    token_user = get_current_user(authorization)
-    user = get_database_user(token_user["user_id"])
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User account not found."
-        )
-    if str(user["status"]).strip().lower() != "active":
-        raise HTTPException(
-            status_code=403,
             detail="User account is inactive."
         )
     return {
@@ -468,8 +384,8 @@ def health_check():
     except Exception as e:
         print("HEALTH CHECK ERROR:", e)
         raise HTTPException(
-            status_code=503,
-            detail="Backend is running but database connection failed."
+            status_code=500,
+            detail="Database connection failed."
         )
     finally:
         if cursor:
@@ -693,23 +609,9 @@ def google_login(data: dict):
         )
 
     try:
-        # Set a timeout for Google's token verification request.
-        base_google_request = requests.Request()
-
-        def google_request(url, method="GET", body=None, headers=None, **kwargs):
-            kwargs.pop("timeout", None)
-            return base_google_request(
-                url,
-                method=method,
-                body=body,
-                headers=headers,
-                timeout=8,
-                **kwargs
-            )
-
         google_user = id_token.verify_oauth2_token(
             credential,
-            google_request,
+            requests.Request(),
             GOOGLE_CLIENT_ID
         )
     except Exception as e:
@@ -815,6 +717,7 @@ def google_login(data: dict):
 
         connection.commit()
 
+        # This is the backend JWT used by protected APIs.
         access_token = create_access_token(
             user["id"],
             user["email"],
@@ -833,7 +736,8 @@ def google_login(data: dict):
                 "email": user["email"],
                 "role": database_role,
                 "department_id": user["department_id"],
-                "status": user["status"]
+                "status": user["status"],
+                "portal": portal
             }
         }
     except HTTPException:
@@ -946,6 +850,7 @@ def create_asset_request(
     finally:
         cursor.close()
         connection.close()
+
 # =========================================================
 # GET ALL REQUESTS - MANAGER / ADMIN
 # =========================================================
@@ -1392,4 +1297,4 @@ def mark_all_notifications_as_read(
         )
     finally:
         cursor.close()
-        connection.close()
+        connection.close() 
