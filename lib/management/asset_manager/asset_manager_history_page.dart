@@ -40,7 +40,7 @@ class _AssetManagerHistoryPageState
     final value = widget.userData?['baseUrl'] ??
         widget.userData?['apiBaseUrl'] ??
         widget.userData?['api_base_url'] ??
-        'http://127.0.0.1:8000';
+        'https://orgaflow-app.onrender.com';
 
     return value.toString().trim().replaceAll(RegExp(r'/+$'), '');
   }
