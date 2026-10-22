@@ -44,9 +44,9 @@ DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "")
 # =========================================================
 # GOOGLE CONFIG
 # =========================================================
-GOOGLE_CLIENT_ID = (
-    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3"
-    ".apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv(
+    "GOOGLE_CLIENT_ID",
+    "449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com"
 )
 
 # =========================================================
@@ -73,8 +73,10 @@ def get_connection():
         port=DB_PORT,
         database=DB_NAME,
         user=DB_USER,
-        password=DB_PASSWORD
+        password=DB_PASSWORD,
+        options="-c search_path=public"
     )
+
 
 # =========================================================
 # CREATE REQUEST TABLE
@@ -82,11 +84,13 @@ def get_connection():
 def create_request_table():
     connection = None
     cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS asset_requests (
+            CREATE TABLE IF NOT EXISTS public.asset_requests (
                 id SERIAL PRIMARY KEY,
                 request_code VARCHAR(30) UNIQUE NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -108,30 +112,37 @@ def create_request_table():
                 reviewed_by INTEGER NULL
             )
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_asset_requests_user_id
-            ON asset_requests(user_id)
+            ON public.asset_requests(user_id)
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_asset_requests_status
-            ON asset_requests(status)
+            ON public.asset_requests(status)
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_asset_requests_created_at
-            ON asset_requests(created_at DESC)
+            ON public.asset_requests(created_at DESC)
         """)
+
         connection.commit()
         print("ASSET REQUEST TABLE READY")
+
     except Exception as e:
         if connection:
             connection.rollback()
         print("REQUEST TABLE ERROR:", e)
         raise
+
     finally:
         if cursor:
             cursor.close()
         if connection:
             connection.close()
+
 
 # =========================================================
 # CREATE NOTIFICATIONS TABLE
@@ -139,11 +150,13 @@ def create_request_table():
 def create_notification_table():
     connection = None
     cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS notifications (
+            CREATE TABLE IF NOT EXISTS public.notifications (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 title VARCHAR(200) NOT NULL,
@@ -154,30 +167,89 @@ def create_notification_table():
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_notifications_user_id
-            ON notifications(user_id)
+            ON public.notifications(user_id)
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_notifications_unread
-            ON notifications(user_id, is_read)
+            ON public.notifications(user_id, is_read)
         """)
+
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_notifications_created_at
-            ON notifications(created_at DESC)
+            ON public.notifications(created_at DESC)
         """)
+
         connection.commit()
         print("NOTIFICATIONS TABLE READY")
+
     except Exception as e:
         if connection:
             connection.rollback()
         print("NOTIFICATION TABLE ERROR:", e)
         raise
+
     finally:
         if cursor:
             cursor.close()
         if connection:
             connection.close()
+
+
+# =========================================================
+# CREATE GOOGLE OAUTH LINK TABLE
+# =========================================================
+def create_oauth_users_table():
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS public.oauth_users (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                google_id VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                name VARCHAR(255),
+                portal VARCHAR(30) NOT NULL DEFAULT 'employee',
+                role VARCHAR(50),
+                status VARCHAR(30) NOT NULL DEFAULT 'Active',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_users_email_lower
+            ON public.oauth_users (LOWER(email))
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_oauth_users_user_id
+            ON public.oauth_users (user_id)
+        """)
+
+        connection.commit()
+        print("OAUTH USERS TABLE READY")
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        print("OAUTH USERS TABLE ERROR:", e)
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
 
 # =========================================================
 # STARTUP
@@ -185,13 +257,17 @@ def create_notification_table():
 @app.on_event("startup")
 def startup_event():
     print("ORGAFLOW BACKEND STARTING")
+
     try:
         create_request_table()
         create_notification_table()
+        create_oauth_users_table()
         print("DATABASE INITIALIZATION SUCCESSFUL")
+
     except Exception as e:
         print("DATABASE INITIALIZATION FAILED:", e)
-        print("Check PostgreSQL and orgaflow_db.")
+        print("Check PostgreSQL and required Orgaflow tables.")
+
 
 # =========================================================
 # NORMALIZE PORTAL AND ROLES
@@ -199,31 +275,39 @@ def startup_event():
 def normalize_portal(portal):
     if portal is None:
         return None
+
     value = str(portal).strip().lower()
+
     if value == "employee":
         return "employee"
+
     if value in ["management", "manager", "admin"]:
         return "management"
+
     return None
 
 
 def normalize_role(role):
     if role is None:
         return None
+
     compact = (
         str(role).strip().replace(" ", "").replace("_", "").lower()
     )
+
     roles = {
         "admin": "ADMIN",
         "assetmanager": "ASSET_MANAGER",
         "departmenthead": "DEPARTMENT_HEAD",
         "employee": "EMPLOYEE"
     }
+
     return roles.get(compact, str(role).strip().upper())
 
 
 def normalize_database_role(role):
     return normalize_role(role)
+
 
 # =========================================================
 # JWT TOKEN GENERATION
@@ -232,6 +316,7 @@ def create_access_token(user_id, email, role, portal):
     expire = datetime.utcnow() + timedelta(
         minutes=JWT_EXPIRATION_MINUTES
     )
+
     payload = {
         "user_id": user_id,
         "email": email,
@@ -239,11 +324,13 @@ def create_access_token(user_id, email, role, portal):
         "portal": portal,
         "exp": expire
     }
+
     return jwt.encode(
         payload,
         JWT_SECRET,
         algorithm=JWT_ALGORITHM
     )
+
 
 # =========================================================
 # GET CURRENT USER FROM JWT
@@ -254,40 +341,49 @@ def get_current_user(authorization: str | None):
             status_code=401,
             detail="Authorization token is required."
         )
+
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
             detail="Invalid authorization header."
         )
+
     token = authorization[len("Bearer "):].strip()
+
     if not token:
         raise HTTPException(
             status_code=401,
             detail="Authorization token is missing."
         )
+
     try:
         payload = jwt.decode(
             token,
             JWT_SECRET,
             algorithms=[JWT_ALGORITHM]
         )
+
         user_id = payload.get("user_id")
+
         if not user_id:
             raise HTTPException(
                 status_code=401,
                 detail="Invalid token."
             )
+
         return {
             "user_id": user_id,
             "email": payload.get("email"),
             "role": payload.get("role"),
             "portal": payload.get("portal")
         }
+
     except JWTError:
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token."
         )
+
 
 # =========================================================
 # DATABASE USER / ACTIVE USER CHECK
@@ -295,13 +391,16 @@ def get_current_user(authorization: str | None):
 def get_database_user(user_id):
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT id, name, email, role, department_id, status
-            FROM users
+            FROM public.users
             WHERE id = %s
         """, (user_id,))
+
         return cursor.fetchone()
+
     finally:
         cursor.close()
         connection.close()
@@ -310,16 +409,19 @@ def get_database_user(user_id):
 def require_active_user(authorization: str | None):
     token_user = get_current_user(authorization)
     user = get_database_user(token_user["user_id"])
+
     if not user:
         raise HTTPException(
             status_code=401,
             detail="User account not found."
         )
+
     if str(user["status"]).strip().lower() != "active":
         raise HTTPException(
             status_code=403,
             detail="User account is inactive."
         )
+
     return {
         "token": token_user,
         "user": user,
@@ -329,12 +431,15 @@ def require_active_user(authorization: str | None):
 
 def require_request_manager(authorization: str | None):
     current = require_active_user(authorization)
+
     if current["role"] not in {"ADMIN", "ASSET_MANAGER"}:
         raise HTTPException(
             status_code=403,
             detail="Only Admin or Asset Manager can manage requests."
         )
+
     return current
+
 
 # =========================================================
 # REQUEST MODELS
@@ -354,6 +459,7 @@ class RequestStatusUpdate(BaseModel):
     status: str
     rejection_reason: str | None = None
 
+
 # =========================================================
 # ROOT
 # =========================================================
@@ -365,6 +471,7 @@ def root():
         "version": "1.2.0"
     }
 
+
 # =========================================================
 # HEALTH CHECK
 # =========================================================
@@ -372,26 +479,32 @@ def root():
 def health_check():
     connection = None
     cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
         cursor.execute("SELECT 1")
         cursor.fetchone()
+
         return {
             "success": True,
             "message": "Backend and database are connected."
         }
+
     except Exception as e:
         print("HEALTH CHECK ERROR:", e)
+
         raise HTTPException(
-            status_code=500,
-            detail="Database connection failed."
+            status_code=503,
+            detail="Backend is running but database connection failed."
         )
+
     finally:
         if cursor:
             cursor.close()
         if connection:
             connection.close()
+
 
 # =========================================================
 # SIGNUP
@@ -412,11 +525,14 @@ def signup(data: dict):
     email = email.strip().lower()
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            SELECT id FROM users
+            SELECT id
+            FROM public.users
             WHERE LOWER(email) = LOWER(%s)
         """, (email,))
+
         if cursor.fetchone():
             raise HTTPException(
                 status_code=400,
@@ -424,8 +540,9 @@ def signup(data: dict):
             )
 
         password_hash = pwd_context.hash(password)
+
         cursor.execute("""
-            INSERT INTO users (
+            INSERT INTO public.users (
                 name, email, password_hash, role, department_id, status
             )
             VALUES (%s, %s, %s, 'Employee', %s, 'Active')
@@ -436,26 +553,33 @@ def signup(data: dict):
             password_hash,
             department_id
         ))
+
         user = cursor.fetchone()
         connection.commit()
+
         return {
             "success": True,
             "message": "Signup successful.",
             "user": user
         }
+
     except HTTPException:
         connection.rollback()
         raise
+
     except Exception as e:
         connection.rollback()
         print("SIGNUP ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Signup failed."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # EMAIL / PASSWORD LOGIN
@@ -474,13 +598,15 @@ def login(data: dict):
     email = email.strip().lower()
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT id, name, email, password_hash,
                    role, department_id, status
-            FROM users
+            FROM public.users
             WHERE LOWER(email) = LOWER(%s)
         """, (email,))
+
         user = cursor.fetchone()
 
         if not user:
@@ -490,6 +616,7 @@ def login(data: dict):
             )
 
         password_hash = user.get("password_hash")
+
         if not password_hash:
             raise HTTPException(
                 status_code=401,
@@ -509,12 +636,14 @@ def login(data: dict):
             )
 
         database_role = normalize_database_role(user["role"])
+
         token = create_access_token(
             user["id"],
             user["email"],
             database_role,
             "employee"
         )
+
         return {
             "success": True,
             "message": "Login successful.",
@@ -529,17 +658,22 @@ def login(data: dict):
                 "status": user["status"]
             }
         }
+
     except HTTPException:
         raise
+
     except Exception as e:
         print("LOGIN ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Login failed."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # VERIFY PORTAL AND ROLE
@@ -559,34 +693,50 @@ def verify_portal_and_role(portal, selected_role, database_role):
         if database_role not in {"EMPLOYEE", "ADMIN"}:
             raise HTTPException(
                 status_code=403,
-                detail="This account is not allowed to access Employee portal."
+                detail=(
+                    "This account is not allowed to access "
+                    "Employee portal."
+                )
             )
         return
 
     if portal == "management":
         allowed_roles = {
-            "ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD"
+            "ADMIN",
+            "ASSET_MANAGER",
+            "DEPARTMENT_HEAD"
         }
+
         if not selected_role:
             raise HTTPException(
                 status_code=400,
                 detail="Management role is required."
             )
+
         if selected_role not in allowed_roles:
             raise HTTPException(
                 status_code=403,
                 detail="Invalid management role."
             )
+
         if database_role not in allowed_roles:
             raise HTTPException(
                 status_code=403,
-                detail="This account is not authorized for Management portal."
+                detail=(
+                    "This account is not authorized for "
+                    "Management portal."
+                )
             )
+
         if selected_role != database_role:
             raise HTTPException(
                 status_code=403,
-                detail="Selected management role does not match the account role."
+                detail=(
+                    "Selected management role does not match "
+                    "the account role."
+                )
             )
+
 
 # =========================================================
 # GOOGLE LOGIN
@@ -602,6 +752,7 @@ def google_login(data: dict):
             status_code=400,
             detail="Google ID token is required."
         )
+
     if not portal:
         raise HTTPException(
             status_code=400,
@@ -609,13 +760,35 @@ def google_login(data: dict):
         )
 
     try:
+        base_google_request = requests.Request()
+
+        def google_request(
+            url,
+            method="GET",
+            body=None,
+            headers=None,
+            **kwargs
+        ):
+            kwargs.pop("timeout", None)
+
+            return base_google_request(
+                url,
+                method=method,
+                body=body,
+                headers=headers,
+                timeout=8,
+                **kwargs
+            )
+
         google_user = id_token.verify_oauth2_token(
             credential,
-            requests.Request(),
+            google_request,
             GOOGLE_CLIENT_ID
         )
+
     except Exception as e:
         print("GOOGLE TOKEN VERIFICATION ERROR:", e)
+
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired Google ID token."
@@ -634,13 +807,34 @@ def google_login(data: dict):
     email = email.strip().lower()
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
+        cursor.execute("""
+            SELECT
+                current_database() AS database_name,
+                current_user AS database_user,
+                current_schema() AS current_schema,
+                current_setting('search_path') AS search_path,
+                to_regclass('public.users')::text
+                    AS public_users_table,
+                to_regclass('public.oauth_users')::text
+                    AS public_oauth_users_table
+        """)
+
+        db_info = cursor.fetchone()
+
+        print(
+            "GOOGLE LOGIN DB DIAGNOSTIC:",
+            dict(db_info) if db_info else None
+        )
+
         cursor.execute("""
             SELECT id, name, email, password_hash,
                    role, department_id, status
-            FROM users
+            FROM public.users
             WHERE LOWER(email) = LOWER(%s)
         """, (email,))
+
         user = cursor.fetchone()
 
         if not user:
@@ -648,21 +842,25 @@ def google_login(data: dict):
                 raise HTTPException(
                     status_code=403,
                     detail=(
-                        "Management access is unavailable for this Google account. "
-                        "Ask an administrator to assign a management role."
+                        "Management access is unavailable for this "
+                        "Google account. Ask an administrator to "
+                        "assign a management role."
                     )
                 )
 
             cursor.execute("""
-                INSERT INTO users (
+                INSERT INTO public.users (
                     name, email, password_hash, role, status
                 )
                 VALUES (%s, %s, NULL, 'Employee', 'Active')
-                RETURNING id, name, email, role, department_id, status
+                RETURNING id, name, email, role,
+                          department_id, status
             """, (name or "Employee", email))
+
             user = cursor.fetchone()
 
         database_role = normalize_database_role(user["role"])
+
         if str(user["status"]).strip().lower() != "active":
             raise HTTPException(
                 status_code=403,
@@ -676,20 +874,23 @@ def google_login(data: dict):
         )
 
         cursor.execute("""
-            SELECT id FROM oauth_users
+            SELECT id
+            FROM public.oauth_users
             WHERE LOWER(email) = LOWER(%s)
         """, (email,))
+
         oauth_user = cursor.fetchone()
 
         if oauth_user:
             cursor.execute("""
-                UPDATE oauth_users
+                UPDATE public.oauth_users
                 SET user_id = %s,
                     google_id = %s,
                     name = %s,
                     portal = %s,
                     role = NULL,
-                    status = %s
+                    status = %s,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
             """, (
                 user["id"],
@@ -699,9 +900,10 @@ def google_login(data: dict):
                 user["status"],
                 oauth_user["id"]
             ))
+
         else:
             cursor.execute("""
-                INSERT INTO oauth_users (
+                INSERT INTO public.oauth_users (
                     user_id, google_id, email, name,
                     portal, role, status
                 )
@@ -717,7 +919,6 @@ def google_login(data: dict):
 
         connection.commit()
 
-        # This is the backend JWT used by protected APIs.
         access_token = create_access_token(
             user["id"],
             user["email"],
@@ -736,23 +937,27 @@ def google_login(data: dict):
                 "email": user["email"],
                 "role": database_role,
                 "department_id": user["department_id"],
-                "status": user["status"],
-                "portal": portal
+                "status": user["status"]
             }
         }
+
     except HTTPException:
         connection.rollback()
         raise
+
     except Exception as e:
         connection.rollback()
         print("GOOGLE LOGIN DATABASE ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Google login failed."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # CREATE ASSET REQUEST
@@ -778,13 +983,17 @@ def create_asset_request(
     if not asset_id or not asset_name or not description:
         raise HTTPException(
             status_code=400,
-            detail="Asset ID, asset name and description are required."
+            detail=(
+                "Asset ID, asset name and description are required."
+            )
         )
 
     priority = data.priority.strip() if data.priority else "Normal"
+
     allowed_priorities = {
         "Normal", "Urgent", "Low", "Medium", "High"
     }
+
     if priority not in allowed_priorities:
         raise HTTPException(
             status_code=400,
@@ -793,16 +1002,27 @@ def create_asset_request(
 
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            INSERT INTO asset_requests (
-                request_code, user_id, employee_name, employee_email,
-                department, asset_id, asset_name, asset_category,
-                asset_brand, asset_model, priority, description, status
+            INSERT INTO public.asset_requests (
+                request_code,
+                user_id,
+                employee_name,
+                employee_email,
+                department,
+                asset_id,
+                asset_name,
+                asset_category,
+                asset_brand,
+                asset_model,
+                priority,
+                description,
+                status
             )
             VALUES (
-                'TEMP', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                'Pending'
+                'TEMP', %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, 'Pending'
             )
             RETURNING id
         """, (
@@ -812,9 +1032,12 @@ def create_asset_request(
             data.department.strip() if data.department else None,
             asset_id,
             asset_name,
-            data.asset_category.strip() if data.asset_category else None,
-            data.asset_brand.strip() if data.asset_brand else None,
-            data.asset_model.strip() if data.asset_model else None,
+            data.asset_category.strip()
+            if data.asset_category else None,
+            data.asset_brand.strip()
+            if data.asset_brand else None,
+            data.asset_model.strip()
+            if data.asset_model else None,
             priority,
             description
         ))
@@ -824,32 +1047,39 @@ def create_asset_request(
         request_code = f"REQ-{1000 + request_id}"
 
         cursor.execute("""
-            UPDATE asset_requests
+            UPDATE public.asset_requests
             SET request_code = %s
             WHERE id = %s
         """, (request_code, request_id))
 
         cursor.execute("""
-            SELECT * FROM asset_requests WHERE id = %s
+            SELECT *
+            FROM public.asset_requests
+            WHERE id = %s
         """, (request_id,))
-        request = cursor.fetchone()
 
+        request = cursor.fetchone()
         connection.commit()
+
         return {
             "success": True,
             "message": "Asset request submitted successfully.",
             "request": request
         }
+
     except Exception as e:
         connection.rollback()
         print("CREATE REQUEST ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to create asset request."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # GET ALL REQUESTS - MANAGER / ADMIN
@@ -859,28 +1089,37 @@ def get_all_requests(
     authorization: str | None = Header(default=None)
 ):
     require_request_manager(authorization)
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            SELECT * FROM asset_requests
+            SELECT *
+            FROM public.asset_requests
             ORDER BY created_at DESC
         """)
+
         requests_data = cursor.fetchall()
+
         return {
             "success": True,
             "count": len(requests_data),
             "requests": requests_data
         }
+
     except Exception as e:
         print("GET ALL REQUESTS ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load asset requests."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # GET MY REQUESTS - CURRENT USER ONLY
@@ -891,29 +1130,38 @@ def get_my_requests(
 ):
     current = require_active_user(authorization)
     user = current["user"]
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            SELECT * FROM asset_requests
+            SELECT *
+            FROM public.asset_requests
             WHERE user_id = %s
             ORDER BY created_at DESC
         """, (user["id"],))
+
         requests_data = cursor.fetchall()
+
         return {
             "success": True,
             "count": len(requests_data),
             "requests": requests_data
         }
+
     except Exception as e:
         print("GET MY REQUESTS ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load your asset requests."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # GET SINGLE REQUEST
@@ -929,11 +1177,14 @@ def get_single_request(
 
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            SELECT * FROM asset_requests
+            SELECT *
+            FROM public.asset_requests
             WHERE id = %s
         """, (request_id,))
+
         request = cursor.fetchone()
 
         if not request:
@@ -948,6 +1199,7 @@ def get_single_request(
                     status_code=403,
                     detail="You are not allowed to view this request."
                 )
+
         elif role not in {"ADMIN", "ASSET_MANAGER"}:
             raise HTTPException(
                 status_code=403,
@@ -958,17 +1210,22 @@ def get_single_request(
             "success": True,
             "request": request
         }
+
     except HTTPException:
         raise
+
     except Exception as e:
         print("GET SINGLE REQUEST ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load request."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # APPROVE / REJECT REQUEST + NOTIFICATION
@@ -983,13 +1240,16 @@ def update_request_status(
     manager = current["user"]
 
     status = data.status.strip().lower()
+
     if status in ["approved", "approve"]:
         new_status = "Approved"
+
     elif status in [
         "rejected", "reject", "not approved",
         "not_approved", "notapproved"
     ]:
         new_status = "Rejected"
+
     else:
         raise HTTPException(
             status_code=400,
@@ -997,12 +1257,14 @@ def update_request_status(
         )
 
     rejection_reason = None
+
     if new_status == "Rejected":
         rejection_reason = (
             data.rejection_reason.strip()
             if data.rejection_reason
             else ""
         )
+
         if not rejection_reason:
             raise HTTPException(
                 status_code=400,
@@ -1011,14 +1273,16 @@ def update_request_status(
 
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT id, request_code, user_id, employee_name,
                    employee_email, asset_name, status
-            FROM asset_requests
+            FROM public.asset_requests
             WHERE id = %s
             FOR UPDATE
         """, (request_id,))
+
         request = cursor.fetchone()
 
         if not request:
@@ -1034,7 +1298,7 @@ def update_request_status(
             )
 
         cursor.execute("""
-            UPDATE asset_requests
+            UPDATE public.asset_requests
             SET status = %s,
                 rejection_reason = %s,
                 reviewed_at = CURRENT_TIMESTAMP,
@@ -1048,6 +1312,7 @@ def update_request_status(
             manager["id"],
             request_id
         ))
+
         updated_request = cursor.fetchone()
 
         if new_status == "Approved":
@@ -1057,6 +1322,7 @@ def update_request_status(
                 f"{request['asset_name']} has been approved."
             )
             notification_type = "request_approved"
+
         else:
             title = "Asset Request Rejected"
             message = (
@@ -1067,8 +1333,12 @@ def update_request_status(
             notification_type = "request_rejected"
 
         cursor.execute("""
-            INSERT INTO notifications (
-                user_id, title, message, notification_type, request_id
+            INSERT INTO public.notifications (
+                user_id,
+                title,
+                message,
+                notification_type,
+                request_id
             )
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id, created_at
@@ -1079,9 +1349,10 @@ def update_request_status(
             notification_type,
             request_id
         ))
-        notification = cursor.fetchone()
 
+        notification = cursor.fetchone()
         connection.commit()
+
         print("REQUEST STATUS UPDATED:", new_status)
         print("REQUEST:", request["request_code"])
         print("NOTIFICATION ID:", notification["id"])
@@ -1096,19 +1367,24 @@ def update_request_status(
             "request": updated_request,
             "notification_created": True
         }
+
     except HTTPException:
         connection.rollback()
         raise
+
     except Exception as e:
         connection.rollback()
         print("UPDATE REQUEST STATUS ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to update request status."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # REQUEST STATISTICS
@@ -1118,18 +1394,28 @@ def get_request_stats(
     authorization: str | None = Header(default=None)
 ):
     require_request_manager(authorization)
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT
                 COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE status = 'Pending') AS pending,
-                COUNT(*) FILTER (WHERE status = 'Approved') AS approved,
-                COUNT(*) FILTER (WHERE status = 'Rejected') AS rejected
-            FROM asset_requests
+                COUNT(*) FILTER (
+                    WHERE status = 'Pending'
+                ) AS pending,
+                COUNT(*) FILTER (
+                    WHERE status = 'Approved'
+                ) AS approved,
+                COUNT(*) FILTER (
+                    WHERE status = 'Rejected'
+                ) AS rejected
+            FROM public.asset_requests
         """)
+
         stats = cursor.fetchone()
+
         return {
             "success": True,
             "stats": {
@@ -1139,15 +1425,19 @@ def get_request_stats(
                 "rejected": stats["rejected"]
             }
         }
+
     except Exception as e:
         print("REQUEST STATS ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load request statistics."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # GET MY NOTIFICATIONS
@@ -1158,32 +1448,40 @@ def get_my_notifications(
 ):
     current = require_active_user(authorization)
     user = current["user"]
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT id, title, message, notification_type,
                    request_id, is_read, created_at
-            FROM notifications
+            FROM public.notifications
             WHERE user_id = %s
             ORDER BY created_at DESC
             LIMIT 100
         """, (user["id"],))
+
         notifications = cursor.fetchall()
+
         return {
             "success": True,
             "count": len(notifications),
             "notifications": notifications
         }
+
     except Exception as e:
         print("GET NOTIFICATIONS ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load notifications."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # GET UNREAD NOTIFICATION COUNT
@@ -1194,28 +1492,37 @@ def get_unread_notification_count(
 ):
     current = require_active_user(authorization)
     user = current["user"]
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
             SELECT COUNT(*) AS unread_count
-            FROM notifications
-            WHERE user_id = %s AND is_read = FALSE
+            FROM public.notifications
+            WHERE user_id = %s
+              AND is_read = FALSE
         """, (user["id"],))
+
         result = cursor.fetchone()
+
         return {
             "success": True,
             "unread_count": result["unread_count"]
         }
+
     except Exception as e:
         print("UNREAD COUNT ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to load unread count."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # MARK ONE NOTIFICATION AS READ
@@ -1227,15 +1534,19 @@ def mark_notification_as_read(
 ):
     current = require_active_user(authorization)
     user = current["user"]
+
     connection = get_connection()
     cursor = connection.cursor(cursor_factory=RealDictCursor)
+
     try:
         cursor.execute("""
-            UPDATE notifications
+            UPDATE public.notifications
             SET is_read = TRUE
-            WHERE id = %s AND user_id = %s
+            WHERE id = %s
+              AND user_id = %s
             RETURNING id, is_read
         """, (notification_id, user["id"]))
+
         notification = cursor.fetchone()
 
         if not notification:
@@ -1245,24 +1556,30 @@ def mark_notification_as_read(
             )
 
         connection.commit()
+
         return {
             "success": True,
             "message": "Notification marked as read.",
             "notification": notification
         }
+
     except HTTPException:
         connection.rollback()
         raise
+
     except Exception as e:
         connection.rollback()
         print("MARK NOTIFICATION READ ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to mark notification as read."
         )
+
     finally:
         cursor.close()
         connection.close()
+
 
 # =========================================================
 # MARK ALL NOTIFICATIONS AS READ
@@ -1273,28 +1590,36 @@ def mark_all_notifications_as_read(
 ):
     current = require_active_user(authorization)
     user = current["user"]
+
     connection = get_connection()
     cursor = connection.cursor()
+
     try:
         cursor.execute("""
-            UPDATE notifications
+            UPDATE public.notifications
             SET is_read = TRUE
-            WHERE user_id = %s AND is_read = FALSE
+            WHERE user_id = %s
+              AND is_read = FALSE
         """, (user["id"],))
+
         updated_count = cursor.rowcount
         connection.commit()
+
         return {
             "success": True,
             "message": "All notifications marked as read.",
             "updated_count": updated_count
         }
+
     except Exception as e:
         connection.rollback()
         print("MARK ALL NOTIFICATIONS READ ERROR:", e)
+
         raise HTTPException(
             status_code=500,
             detail="Unable to mark notifications as read."
         )
+
     finally:
         cursor.close()
-        connection.close() 
+        connection.close()
