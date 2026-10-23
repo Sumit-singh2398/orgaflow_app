@@ -1,4 +1,4 @@
-services:
+﻿services:
   # =========================================================
   # ORGAFLOW FASTAPI BACKEND -> RENDER
   # Ye file repo root par hai. Render -> "New +" -> "Blueprint"
@@ -21,7 +21,7 @@ services:
       - key: DATABASE_URL
         value: postgresql://neondb_owner:npg_MRVF6z1XphDK@ep-round-snow-b5w8u2ak-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
       - key: ORGAFLOW_JWT_SECRET
-        sync: false   # Render dashboard par set karo (random string)
+        value: 8FQ7a4orTDcJUvMJDME3Su9haHZCvUfblnmyCxxBRJ3y4d-je6PXpgach_xRDO0asrXHpfbVXAJkLYDrEBNtkw
       # ---- Optional (in-app default client id already set hai) ----
       - key: GOOGLE_CLIENT_ID
         sync: false
