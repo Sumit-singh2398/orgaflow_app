@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AssetManagerRequestsPage extends StatefulWidget {
@@ -28,7 +29,7 @@ class _AssetManagerRequestsPageState
   //
   // Then Flutter can access FastAPI using:
   // http://127.0.0.1:8000
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
   static const Duration requestTimeout = Duration(seconds: 30);
 

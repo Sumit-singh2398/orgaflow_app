@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../config/api_config.dart';
 
 class AssetManagerScanPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -27,7 +28,7 @@ class _AssetManagerScanPageState extends State<AssetManagerScanPage> {
 
   // Android emulator URL.
   // Real phone par laptop ka LAN IP ya deployed backend URL use karein.
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
   final TextEditingController codeController = TextEditingController();
 

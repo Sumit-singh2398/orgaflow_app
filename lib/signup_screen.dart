@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'config/api_config.dart';
 
 import '../employee/employee_dashboard.dart';
 
@@ -151,7 +152,7 @@ class _SignupScreenState extends State<SignupScreen> {
       // 127.0.0.1 when backend is running on your PC.
 
       final url = Uri.parse(
-        'https://orgaflow-app.onrender.com/api/auth/signup',
+        '${AppConfig.baseUrl}/api/auth/signup',
       );
 
       // ==========================================================

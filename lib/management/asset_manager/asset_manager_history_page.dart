@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../config/api_config.dart';
 
 class AssetManagerHistoryPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -40,7 +41,7 @@ class _AssetManagerHistoryPageState
     final value = widget.userData?['baseUrl'] ??
         widget.userData?['apiBaseUrl'] ??
         widget.userData?['api_base_url'] ??
-        'https://orgaflow-app.onrender.com';
+        AppConfig.baseUrl;
 
     return value.toString().trim().replaceAll(RegExp(r'/+$'), '');
   }

@@ -4,9 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../config/api_config.dart';
+
 class EmployeeNotificationService {
-  // Android emulator ke liye.
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static const String baseUrl = AppConfig.baseUrl;
 
   // Login screen mein token jis key se save hota hai,
   // us key ko is list mein confirm kar lena.

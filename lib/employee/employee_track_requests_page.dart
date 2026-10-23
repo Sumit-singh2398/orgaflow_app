@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 class EmployeeTrackRequestsPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -30,7 +31,7 @@ class _EmployeeTrackRequestsPageState
   // Then use:
   // http://127.0.0.1:8000
 
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
   static const Duration requestTimeout =
       Duration(seconds: 30);

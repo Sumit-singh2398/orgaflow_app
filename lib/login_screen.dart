@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'signup_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_conditions_screen.dart';
+import 'config/api_config.dart';
 
 import 'employee/employee_dashboard.dart';
 import 'management/admin/admin_dashboard.dart';
@@ -101,10 +102,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // BACKEND CONFIGURATION
 
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
   static const String googleServerClientId =
-      '449981088129-fptar4p18jkmsgk6avhigqintmv0qha3.apps.googleusercontent.com';
+      AppConfig.googleServerClientId;
 
   static const String tokenStorageKey = 'access_token';
 

@@ -109,6 +109,11 @@ def get_connection():
     # sslmode missing ho to require inject karo.
     dsn = DATABASE_URL
 
+    # Neon PgBouncer pooler does not support SCRAM channel_binding
+    if "channel_binding=" in dsn:
+        import re
+        dsn = re.sub(r'([?&])channel_binding=[^&]*(&|$)', r'\1', dsn).rstrip('&?')
+
     if "sslmode=" not in dsn:
         dsn = dsn + ("&" if "?" in dsn else "?") + "sslmode=require"
 

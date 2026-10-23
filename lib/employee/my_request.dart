@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 
 /// ============================================================
 /// API CONFIG
@@ -20,9 +21,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///     http://10.0.2.2:8000
 ///
 class ApiConfig {
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
-  static const Duration requestTimeout = Duration(seconds: 30);
+  static const Duration requestTimeout = AppConfig.requestTimeout;
 }
 
 /// ============================================================

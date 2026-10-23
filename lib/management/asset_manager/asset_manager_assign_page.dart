@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../../config/api_config.dart';
 
 class AssetManagerAssignPage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -16,7 +17,7 @@ class AssetManagerAssignPage extends StatefulWidget {
 
 class _AssetManagerAssignPageState extends State<AssetManagerAssignPage> {
   // Android emulator. For a physical phone, use your computer's LAN IP.
-  static const String baseUrl = 'https://orgaflow-app.onrender.com';
+  static const String baseUrl = AppConfig.baseUrl;
 
   static const Color primary = Color(0xFF3B5BDB);
   static const Color background = Color(0xFFF4F6FB);
