@@ -406,7 +406,7 @@ class _AssetManagerDashboardState
 
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.20),
+            color: primaryColor.withValues(alpha: 0.20),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -491,7 +491,7 @@ class _AssetManagerDashboardState
               boxShadow: [
                 BoxShadow(
                   color:
-                      Colors.black.withOpacity(0.10),
+                      Colors.black.withValues(alpha: 0.10),
                   blurRadius: 10,
                   offset:
                       const Offset(0, 4),
@@ -548,7 +548,7 @@ class _AssetManagerDashboardState
         boxShadow: [
           BoxShadow(
             color:
-                Colors.black.withOpacity(0.035),
+                Colors.black.withValues(alpha: 0.035),
             blurRadius: 12,
             offset:
                 const Offset(0, 4),
@@ -1161,7 +1161,7 @@ class _AssetManagerDashboardState
               boxShadow: [
                 BoxShadow(
                   color:
-                      Colors.black.withOpacity(0.12),
+                      Colors.black.withValues(alpha: 0.12),
                   blurRadius: 12,
                   offset:
                       const Offset(0, 5),

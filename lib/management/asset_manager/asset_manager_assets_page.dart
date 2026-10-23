@@ -544,7 +544,7 @@ class _AssetManagerAssetsPageState
         vertical: 6,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(.10),
+        color: color.withValues(alpha: .10),
         borderRadius:
             BorderRadius.circular(20),
       ),
@@ -797,7 +797,7 @@ class _AssetManagerAssetsPageState
 
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           selectedCategory,
                       decoration:
                           InputDecoration(
@@ -838,7 +838,7 @@ class _AssetManagerAssetsPageState
 
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           selectedStatus,
                       decoration:
                           InputDecoration(
@@ -879,7 +879,7 @@ class _AssetManagerAssetsPageState
 
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           selectedEmployee,
                       decoration:
                           InputDecoration(
@@ -937,7 +937,7 @@ class _AssetManagerAssetsPageState
                       ),
                       value:
                           visibleToEmployees,
-                      activeColor:
+                      activeThumbColor:
                           const Color(
                         0xFF3157D5,
                       ),
@@ -1111,7 +1111,7 @@ class _AssetManagerAssetsPageState
                     // CATEGORY
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           selectedCategory,
                       decoration:
                           InputDecoration(
@@ -1153,7 +1153,7 @@ class _AssetManagerAssetsPageState
                     // STATUS
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           selectedStatus,
                       decoration:
                           InputDecoration(
@@ -1195,7 +1195,7 @@ class _AssetManagerAssetsPageState
                     // EMPLOYEE
                     DropdownButtonFormField<
                         String>(
-                      value:
+                      initialValue:
                           employees.contains(
                         selectedEmployee,
                       )
@@ -1258,7 +1258,7 @@ class _AssetManagerAssetsPageState
                       ),
                       value:
                           visibleToEmployees,
-                      activeColor:
+                      activeThumbColor:
                           const Color(
                         0xFF3157D5,
                       ),

@@ -1055,7 +1055,7 @@ class _AssetManagerRequestsPageState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1129,7 +1129,7 @@ class _AssetManagerRequestsPageState
           vertical: 6,
         ),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.10),
+          color: color.withValues(alpha: 0.10),
           borderRadius:
               BorderRadius.circular(20),
         ),
@@ -1215,7 +1215,7 @@ class _AssetManagerRequestsPageState
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.10),
+                color: color.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -1290,7 +1290,7 @@ class _AssetManagerRequestsPageState
                     decoration: BoxDecoration(
                       color: const Color(
                         0xFF3B5BDB,
-                      ).withOpacity(0.10),
+                      ).withValues(alpha: 0.10),
                       borderRadius:
                           BorderRadius.circular(14),
                     ),
@@ -1459,7 +1459,7 @@ class _AssetManagerRequestsPageState
                   decoration:
                       BoxDecoration(
                     color: statusColor
-                        .withOpacity(0.06),
+                        .withValues(alpha: 0.06),
                     borderRadius:
                         BorderRadius.circular(
                       10,

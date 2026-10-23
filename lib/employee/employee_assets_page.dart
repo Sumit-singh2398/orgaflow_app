@@ -355,7 +355,7 @@ class _EmployeeAssetsPageState extends State<EmployeeAssetsPage> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: _primary.withOpacity(0.18),
+                              color: _primary.withValues(alpha: 0.18),
                               blurRadius: 18,
                               offset: const Offset(0, 7),
                             ),
@@ -400,7 +400,7 @@ class _EmployeeAssetsPageState extends State<EmployeeAssetsPage> {
                               height: 58,
                               width: 58,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
+                                color: Colors.white.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(17),
                               ),
                               child: const Icon(
@@ -548,7 +548,7 @@ class _EmployeeAssetsPageState extends State<EmployeeAssetsPage> {
                           Icon(
                             Icons.search_off_rounded,
                             size: 54,
-                            color: _primary.withOpacity(0.65),
+                            color: _primary.withValues(alpha: 0.65),
                           ),
                           const SizedBox(height: 12),
                           const Text(
@@ -634,7 +634,7 @@ class _AssetCard extends StatelessWidget {
         border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.025),
+            color: Colors.black.withValues(alpha: 0.025),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),

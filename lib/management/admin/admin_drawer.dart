@@ -160,7 +160,7 @@ class AdminDrawer extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         selected: selected,
-        selectedTileColor: primary.withOpacity(0.10),
+        selectedTileColor: primary.withValues(alpha: 0.10),
         leading: Icon(
           icon,
           color: selected ? primary : Colors.grey.shade700,

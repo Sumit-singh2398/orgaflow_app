@@ -428,7 +428,7 @@ class _EmployeeTrackRequestsPageState
       final period =
           date.hour >= 12 ? 'PM' : 'AM';
 
-      return '$day/$month/$year • '
+      return '$day/$month/$year â€¢ '
           '$hour:$minute $period';
     } catch (_) {
       return text;
@@ -1130,7 +1130,7 @@ class _EmployeeTrackRequestsPageState
           boxShadow: [
             BoxShadow(
               color: Colors.black
-                  .withOpacity(0.035),
+                  .withValues(alpha: 0.035),
               blurRadius: 12,
               offset:
                   const Offset(0, 5),
@@ -1768,8 +1768,7 @@ class _EmployeeTrackRequestsPageState
               'Unable to load requests',
               textAlign:
                   TextAlign.center,
-              style:
-                  const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight:
                     FontWeight.w800,

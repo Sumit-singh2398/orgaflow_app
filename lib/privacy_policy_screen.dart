@@ -10,8 +10,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
   static const Color secondaryTextColor = Color(0xFF737B91);
   static const Color cardColor = Colors.white;
 
-  static const List<_PolicySection> sections = [
-    _PolicySection(
+  static const List<PolicySection> sections = [
+    PolicySection(
       title: 'Information We Collect',
       icon: Icons.folder_shared_outlined,
       content:
@@ -19,7 +19,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'employee details, department information, and asset-related '
           'information needed to provide application services.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'How We Use Your Information',
       icon: Icons.track_changes_rounded,
       content:
@@ -28,7 +28,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'maintenance requests, send notifications, and provide application '
           'features.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Account Information',
       icon: Icons.manage_accounts_outlined,
       content:
@@ -36,7 +36,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'You are responsible for keeping your login credentials secure '
           'and preventing unauthorized access to your account.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Google Sign-In',
       icon: Icons.g_mobiledata_rounded,
       content:
@@ -45,7 +45,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'identifier. This information is used for authentication and '
           'account linking.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Asset Information',
       icon: Icons.devices_other_rounded,
       content:
@@ -53,7 +53,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'and related records may be stored in the Orgaflow backend to '
           'support organizational asset management.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Data Security',
       icon: Icons.shield_outlined,
       content:
@@ -61,7 +61,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'information through authentication, access controls, password '
           'hashing, and secure communication practices where applicable.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Third-Party Services',
       icon: Icons.hub_outlined,
       content:
@@ -69,7 +69,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'authentication and hosting services, to support application '
           'functionality.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Data Retention',
       icon: Icons.storage_outlined,
       content:
@@ -77,7 +77,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'as necessary to provide application services or to meet the '
           'organization’s applicable data-retention requirements.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Policy Updates',
       icon: Icons.update_rounded,
       content:
@@ -85,7 +85,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           'security practices, or applicable requirements evolve. '
           'Please review this page periodically for updates.',
     ),
-    _PolicySection(
+    PolicySection(
       title: 'Contact & Support',
       icon: Icons.support_agent_rounded,
       content:
@@ -170,7 +170,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _PolicyCard(
+                      child: PolicyCard(
                         number: index + 1,
                         section: section,
                       ),
@@ -348,23 +348,24 @@ class PrivacyPolicyScreen extends StatelessWidget {
   }
 }
 
-class _PolicySection {
+class PolicySection {
   final String title;
   final IconData icon;
   final String content;
 
-  const _PolicySection({
+  const PolicySection({
     required this.title,
     required this.icon,
     required this.content,
   });
 }
 
-class _PolicyCard extends StatelessWidget {
+class PolicyCard extends StatelessWidget {
   final int number;
-  final _PolicySection section;
+  final PolicySection section;
 
-  const _PolicyCard({
+  const PolicyCard({
+    super.key,
     required this.number,
     required this.section,
   });

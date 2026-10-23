@@ -25,7 +25,7 @@ class AdminQuickAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -41,7 +41,7 @@ class AdminQuickAction extends StatelessWidget {
           vertical: 6,
         ),
         leading: CircleAvatar(
-          backgroundColor: primary.withOpacity(0.10),
+          backgroundColor: primary.withValues(alpha: 0.10),
           child: Icon(
             icon,
             color: primary,

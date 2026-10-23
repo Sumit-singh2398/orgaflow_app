@@ -621,7 +621,7 @@ class _AssetManagerHistoryPageState
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
@@ -726,7 +726,7 @@ class _AssetManagerHistoryPageState
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: metric.color.withOpacity(0.10),
+              color: metric.color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(metric.icon, color: metric.color, size: 21),
@@ -865,7 +865,7 @@ class _AssetManagerHistoryPageState
               selected: active,
               onSelected: (_) =>
                   setState(() => selectedFilter = filter),
-              selectedColor: primary.withOpacity(0.13),
+              selectedColor: primary.withValues(alpha: 0.13),
               backgroundColor: Colors.white,
               side: BorderSide(
                 color: active ? primary : border,
@@ -901,7 +901,7 @@ class _AssetManagerHistoryPageState
             width: 43,
             height: 43,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
+              color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(13),
             ),
             child: Icon(iconFor(title), color: color, size: 22),

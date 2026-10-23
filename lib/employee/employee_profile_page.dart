@@ -196,7 +196,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
       border: Border.all(color: Colors.grey.shade200),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.03),
+          color: Colors.black.withValues(alpha: 0.03),
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),
@@ -321,7 +321,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: profileDangerColor,
                         side: BorderSide(
-                          color: profileDangerColor.withOpacity(0.4),
+                          color: profileDangerColor.withValues(alpha: 0.4),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -975,7 +975,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: profilePrimaryColor.withOpacity(0.10),
+          color: profilePrimaryColor.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
         ),
         child: const Icon(
@@ -1166,7 +1166,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: profilePrimaryColor.withOpacity(0.25),
+            color: profilePrimaryColor.withValues(alpha: 0.25),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1183,7 +1183,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                   shape: BoxShape.circle,
                   color: Colors.white,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     width: 3,
                   ),
                 ),
@@ -1246,12 +1246,12 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
           Text(
             department == 'Not assigned'
                 ? designation
-                : '$designation  •  $department',
+                : '$designation  â€¢  $department',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 16),
@@ -1293,7 +1293,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
+        color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -1366,7 +1366,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
+              color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 22),
@@ -1546,7 +1546,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: profilePrimaryColor.withOpacity(0.10),
+                color: profilePrimaryColor.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: profilePrimaryColor, size: 22),
@@ -1648,7 +1648,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: profilePrimaryColor.withOpacity(0.10),
+              color: profilePrimaryColor.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: profilePrimaryColor, size: 22),
@@ -1679,7 +1679,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
           ),
           Switch(
             value: value,
-            activeColor: profilePrimaryColor,
+            activeThumbColor: profilePrimaryColor,
             onChanged: onChanged,
           ),
         ],
@@ -1718,7 +1718,7 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.10),
+                  color: iconColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(icon, color: iconColor, size: 23),

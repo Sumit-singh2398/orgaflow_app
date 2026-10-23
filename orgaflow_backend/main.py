@@ -7,18 +7,41 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from jose import jwt, JWTError
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+load_dotenv(ENV_PATH)
+
+# =========================================================
+# STARTUP / LIFESPAN
+# =========================================================
+@asynccontextmanager
+async def lifespan(app):
+    print("ORGAFLOW BACKEND STARTING")
+
+    try:
+        create_request_table()
+        create_notification_table()
+        create_oauth_users_table()
+        print("DATABASE INITIALIZATION SUCCESSFUL")
+
+    except Exception as e:
+        print("DATABASE INITIALIZATION FAILED:", e)
+        print("Check PostgreSQL and required Orgaflow tables.")
+
+    yield
+
 
 # =========================================================
 # APP CONFIG
 # =========================================================
 app = FastAPI(
     title="Orgaflow Backend",
-    version="1.2.0"
+    version="1.2.0",
+    lifespan=lifespan
 )
 
 # =========================================================
@@ -33,13 +56,25 @@ app.add_middleware(
 )
 
 # =========================================================
-# DATABASE CONFIG
+# DATABASE CONFIG (NEON - console.neon.tech)
 # =========================================================
-DB_HOST = os.getenv("ORGAFLOW_DB_HOST", "localhost")
-DB_PORT = int(os.getenv("ORGAFLOW_DB_PORT", "5432"))
-DB_NAME = os.getenv("ORGAFLOW_DB_NAME", "orgaflow_db")
-DB_USER = os.getenv("ORGAFLOW_DB_USER", "postgres")
-DB_PASSWORD = os.getenv("ORGAFLOW_DB_PASSWORD", "")
+# Neon Postgres ka connection string .env file mein hai.
+#
+# .env example:
+#   DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx-xxxx.region.aws.neon.tech/neondb?sslmode=require
+#
+# Neon console se connection string copy karo:
+#   console.neon.tech -> Project -> Dashboard -> "Connect" / "Connection string"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set.\n"
+        "Create orgaflow_backend/.env and add your Neon Postgres "
+        "connection string:\n"
+        "  DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require\n"
+        "Neon console: https://console.neon.tech"
+    )
 
 # =========================================================
 # GOOGLE CONFIG
@@ -65,15 +100,19 @@ pwd_context = CryptContext(
 )
 
 # =========================================================
-# DATABASE CONNECTION
+# DATABASE CONNECTION (NEON)
 # =========================================================
 def get_connection():
+    # Neon hamesha SSL mande karta hai; agar DSN mein
+    # sslmode missing ho to require inject karo.
+    dsn = DATABASE_URL
+
+    if "sslmode=" not in dsn:
+        dsn = dsn + ("&" if "?" in dsn else "?") + "sslmode=require"
+
     return psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
+        dsn,
+        connect_timeout=15,
         options="-c search_path=public"
     )
 
@@ -254,21 +293,6 @@ def create_oauth_users_table():
 # =========================================================
 # STARTUP
 # =========================================================
-@app.on_event("startup")
-def startup_event():
-    print("ORGAFLOW BACKEND STARTING")
-
-    try:
-        create_request_table()
-        create_notification_table()
-        create_oauth_users_table()
-        print("DATABASE INITIALIZATION SUCCESSFUL")
-
-    except Exception as e:
-        print("DATABASE INITIALIZATION FAILED:", e)
-        print("Check PostgreSQL and required Orgaflow tables.")
-
-
 # =========================================================
 # NORMALIZE PORTAL AND ROLES
 # =========================================================
@@ -313,7 +337,7 @@ def normalize_database_role(role):
 # JWT TOKEN GENERATION
 # =========================================================
 def create_access_token(user_id, email, role, portal):
-    expire = datetime.utcnow() + timedelta(
+    expire = datetime.now(timezone.utc) + timedelta(
         minutes=JWT_EXPIRATION_MINUTES
     )
 

@@ -165,7 +165,7 @@ class _AssetManagerAssignPageState extends State<AssetManagerAssignPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: availableAssets.any(
+              initialValue: availableAssets.any(
                 (a) => a['id'] == selectedAssetCode,
               )
                   ? selectedAssetCode

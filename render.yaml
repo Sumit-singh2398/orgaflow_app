@@ -1,0 +1,23 @@
+services:
+  # =========================================================
+  # ORGAFLOW FASTAPI BACKEND -> RENDER
+  # Ye file repo root par hai. Render -> "New +" -> "Blueprint"
+  # se repo select karo, settings auto-apply ho jayengi.
+  # =========================================================
+  - type: web
+    name: orgaflow-backend
+    runtime: python
+    rootDir: orgaflow_backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # ---- Secrets: Render dashboard -> Environment tab mein set karo ----
+      - key: DATABASE_URL
+        sync: false   # Neon pooled connection string dashboard par paste karo
+      - key: ORGAFLOW_JWT_SECRET
+        generateValue: true   # Render random secret khud generate karega
+      # ---- Optional (in-app default client id pehle se hai) ----
+      - key: GOOGLE_CLIENT_ID
+        sync: false

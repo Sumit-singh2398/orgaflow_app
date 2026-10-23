@@ -9,8 +9,8 @@ class TermsConditionsScreen extends StatelessWidget {
   static const Color textColor = Color(0xFF202944);
   static const Color secondaryTextColor = Color(0xFF737D94);
 
-  static const List<_TermsSection> sections = [
-    _TermsSection(
+  static const List<TermsSection> sections = [
+    TermsSection(
       title: 'Acceptance of Terms',
       icon: Icons.verified_user_outlined,
       content:
@@ -18,7 +18,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'Terms & Conditions. If you do not agree with these terms, '
           'you should not use the application.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Account Registration',
       icon: Icons.person_outline_rounded,
       content:
@@ -27,7 +27,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'of their login credentials and account. Any suspected '
           'unauthorized access should be reported to the administrator.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Authorized Use',
       icon: Icons.security_outlined,
       content:
@@ -35,7 +35,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'Users should only access information, assets, requests, '
           'and features that they are permitted to access.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'User Roles & Permissions',
       icon: Icons.admin_panel_settings_outlined,
       content:
@@ -44,7 +44,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'portal does not itself grant administrative or management '
           'permissions.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Asset Management',
       icon: Icons.inventory_2_outlined,
       content:
@@ -52,7 +52,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'records, and related activities should be entered accurately '
           'and only by authorized users.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Prohibited Activities',
       icon: Icons.gpp_bad_outlined,
       content:
@@ -61,7 +61,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'records without permission, or use Orgaflow for unlawful '
           'or unauthorized activities.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Service Availability',
       icon: Icons.cloud_outlined,
       content:
@@ -70,7 +70,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'providers, and other technical services. Temporary '
           'interruptions may occur.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Account Suspension',
       icon: Icons.no_accounts_outlined,
       content:
@@ -78,7 +78,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'an account when required for security, organizational policy, '
           'or other legitimate administrative reasons.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Changes to Terms',
       icon: Icons.update_rounded,
       content:
@@ -86,7 +86,7 @@ class TermsConditionsScreen extends StatelessWidget {
           'features, policies, or requirements change. The updated '
           'version should be reviewed before continuing to use Orgaflow.',
     ),
-    _TermsSection(
+    TermsSection(
       title: 'Contact & Support',
       icon: Icons.support_agent_rounded,
       content:
@@ -140,7 +140,7 @@ class TermsConditionsScreen extends StatelessWidget {
                   ...sections.asMap().entries.map((entry) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _SectionCard(
+                      child: SectionCard(
                         number: entry.key + 1,
                         section: entry.value,
                       ),
@@ -345,23 +345,24 @@ class TermsConditionsScreen extends StatelessWidget {
   }
 }
 
-class _TermsSection {
+class TermsSection {
   final String title;
   final IconData icon;
   final String content;
 
-  const _TermsSection({
+  const TermsSection({
     required this.title,
     required this.icon,
     required this.content,
   });
 }
 
-class _SectionCard extends StatelessWidget {
+class SectionCard extends StatelessWidget {
   final int number;
-  final _TermsSection section;
+  final TermsSection section;
 
-  const _SectionCard({
+  const SectionCard({
+    super.key,
     required this.number,
     required this.section,
   });

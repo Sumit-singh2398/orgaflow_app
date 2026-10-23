@@ -27,7 +27,7 @@ class AdminSectionPage extends StatelessWidget {
               height: 110,
               width: 110,
               decoration: BoxDecoration(
-                color: primary.withOpacity(0.10),
+                color: primary.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(
