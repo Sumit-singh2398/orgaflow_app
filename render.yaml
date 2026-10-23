@@ -13,11 +13,15 @@ services:
     plan: free
     healthCheckPath: /api/health
     envVars:
-      # ---- Secrets: Render dashboard -> Environment tab mein set karo ----
+      # ------------------------------------------------------------ WARNING ----
+      # Secret temporarily chart mein hai taaki deploy block na ho.
+      # Deploy live hone ke baad Neon password ROTATE karo aur isko
+      # wapas sync:false karke dashboard se set karo.
+      # ------------------------------------------------------------
       - key: DATABASE_URL
-        sync: false   # Neon pooled connection string dashboard par paste karo
+        value: postgresql://neondb_owner:npg_MRVF6z1XphDK@ep-round-snow-b5w8u2ak-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
       - key: ORGAFLOW_JWT_SECRET
-        generateValue: true   # Render random secret khud generate karega
-      # ---- Optional (in-app default client id pehle se hai) ----
+        sync: false   # Render dashboard par set karo (random string)
+      # ---- Optional (in-app default client id already set hai) ----
       - key: GOOGLE_CLIENT_ID
         sync: false
