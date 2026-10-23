@@ -69,10 +69,12 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not DATABASE_URL:
     raise RuntimeError(
-        "DATABASE_URL is not set.\n"
-        "Create orgaflow_backend/.env and add your Neon Postgres "
-        "connection string:\n"
-        "  DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require\n"
+        "DATABASE_URL is not set.\n\n"
+        "Local run: create orgaflow_backend/.env with:\n"
+        "  DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require\n\n"
+        "Render deploy: go to your service -> Environment tab ->\n"
+        "  add 'DATABASE_URL' with your Neon pooled connection string,\n"
+        "  then Save & Deploy.\n\n"
         "Neon console: https://console.neon.tech"
     )
 
