@@ -9,7 +9,7 @@ services:
     runtime: python
     rootDir: orgaflow_backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: python main.py
     plan: free
     healthCheckPath: /api/health
     envVars:

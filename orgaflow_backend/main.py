@@ -65,18 +65,16 @@ app.add_middleware(
 #
 # Neon console se connection string copy karo:
 #   console.neon.tech -> Project -> Dashboard -> "Connect" / "Connection string"
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DEFAULT_DATABASE_URL = (
+    "postgresql://neondb_owner:npg_MRVF6z1XphDK@"
+    "ep-round-snow-b5w8u2ak-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
+)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip() or DEFAULT_DATABASE_URL
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not set.\n\n"
-        "Local run: create orgaflow_backend/.env with:\n"
-        "  DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require\n\n"
-        "Render deploy: go to your service -> Environment tab ->\n"
-        "  add 'DATABASE_URL' with your Neon pooled connection string,\n"
-        "  then Save & Deploy.\n\n"
-        "Neon console: https://console.neon.tech"
-    )
+if DATABASE_URL == DEFAULT_DATABASE_URL:
+    print("[INFO] DATABASE_URL not set in env; using default Neon connection.")
+else:
+    print("[INFO] DATABASE_URL loaded from environment.")
 
 # =========================================================
 # GOOGLE CONFIG
@@ -1653,3 +1651,9 @@ def mark_all_notifications_as_read(
     finally:
         cursor.close()
         connection.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    print(f"[INFO] Starting Orgaflow Backend on port {port}...")
+    uvicorn.run("main:app", host="0.0.0.0", port=port, log_level="info")
