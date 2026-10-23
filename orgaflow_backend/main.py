@@ -114,8 +114,7 @@ def get_connection():
 
     return psycopg2.connect(
         dsn,
-        connect_timeout=15,
-        options="-c search_path=public"
+        connect_timeout=15
     )
 
 
