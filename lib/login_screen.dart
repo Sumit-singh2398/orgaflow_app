@@ -17,81 +17,6 @@ import 'management/admin/admin_dashboard.dart';
 import 'management/asset_manager/asset_manager_dashboard.dart';
 import 'management/department_head/department_head_dashboard.dart';
 
-// ============================================================
-// GOOGLE FOUR-COLOUR LOGO
-// ============================================================
-
-class GoogleLogo extends StatelessWidget {
-  const GoogleLogo({super.key, this.size = 30});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: GoogleLogoPainter(),
-      ),
-    );
-  }
-}
-
-class GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 5, size.height / 2);
-    final radius = size.width * 0.39;
-    final stroke = size.width * 0.18;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.butt
-      ..isAntiAlias = true;
-
-    // Red
-    paint.color = const Color(0xFFEA4335);
-    canvas.drawArc(rect, -2.35, 1.38, false, paint);
-
-    // Yellow
-    paint.color = const Color(0xFFFBBC05);
-    canvas.drawArc(rect, -0.92, 1.42, false, paint);
-
-    // Green
-    paint.color = const Color(0xFF34A853);
-    canvas.drawArc(rect, 0.57, 1.43, false, paint);
-
-    // Blue
-    paint.color = const Color(0xFF4285F4);
-    canvas.drawArc(rect, 2.08, 1.82, false, paint);
-
-    // Blue horizontal bar
-    final barPaint = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..isAntiAlias = true;
-
-    canvas.drawRect(
-      Rect.fromLTWH(
-        center.dx + radius * 0.05,
-        center.dy - stroke / 2,
-        radius * 1.05,
-        stroke,
-      ),
-      barPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant GoogleLogoPainter oldDelegate) => false;
-}
-
-// ============================================================
-// LOGIN SCREEN
-// ============================================================
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -100,65 +25,38 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // BACKEND CONFIGURATION
-
   static const String baseUrl = AppConfig.baseUrl;
-
   static const String googleServerClientId =
       AppConfig.googleServerClientId;
-
   static const String tokenStorageKey = 'access_token';
-
-  // COLORS
 
   static const Color primaryColor = Color(0xFF3B5BDB);
   static const Color backgroundColor = Color(0xFFEDEFF5);
   static const Color secondaryText = Color(0xFF6B7280);
 
-  // CONTROLLERS
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  final TextEditingController _emailController =
-      TextEditingController();
-
-  final TextEditingController _passwordController =
-      TextEditingController();
-
-  // STATE
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
   bool _isManagement = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _googleInitialized = false;
 
   String? _selectedManagementRole;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  static const Map<String, String> allowedAccounts = {
+    'singhsumit23578@gmail.com': 'EMPLOYEE',
+    'singhsumit98645@gmail.com': 'ASSET_MANAGER',
+    'mehra65749@gmail.com': 'ADMIN',
+    'singha96116@gmail.com': 'DEPARTMENT_HEAD',
+  };
 
   @override
   void initState() {
     super.initState();
     _initializeGoogle();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    precacheImage(
-      const AssetImage('assets/images/orgaflow_logo.png'),
-      context,
-    );
-  }
-
-  Future<void> _initializeGoogle() async {
-    try {
-      await _googleSignIn.initialize(
-        serverClientId: googleServerClientId,
-      );
-
-      debugPrint('Google Sign-In initialized successfully');
-    } catch (e) {
-      debugPrint('Google initialization error: $e');
-    }
   }
 
   @override
@@ -168,9 +66,75 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // MESSAGES AND SESSION
-  // ============================================================
+  Future<void> _initializeGoogle() async {
+    try {
+      await _googleSignIn.initialize(
+        serverClientId: googleServerClientId,
+      );
+
+      if (mounted) {
+        setState(() => _googleInitialized = true);
+      }
+    } catch (e) {
+      debugPrint('Google initialization error: $e');
+    }
+  }
+
+  String _normalizeRole(String role) {
+    final value = role
+        .trim()
+        .toUpperCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+
+    switch (value) {
+      case 'ADMIN':
+        return 'ADMIN';
+      case 'ASSETMANAGER':
+      case 'ASSET_MANAGER':
+        return 'ASSET_MANAGER';
+      case 'DEPARTMENTHEAD':
+      case 'DEPARTMENT_HEAD':
+        return 'DEPARTMENT_HEAD';
+      case 'EMPLOYEE':
+        return 'EMPLOYEE';
+      default:
+        return value;
+    }
+  }
+
+  String _selectedRole() {
+    if (!_isManagement) return 'EMPLOYEE';
+    return _selectedManagementRole ?? '';
+  }
+
+  bool _validateAccount(String email) {
+    final normalizedEmail = email.trim().toLowerCase();
+    final allowedRole = allowedAccounts[normalizedEmail];
+
+    if (allowedRole == null) {
+      _showMessage(
+        'This email is not authorized to access Orgaflow.',
+      );
+      return false;
+    }
+
+    final selectedRole = _selectedRole();
+
+    if (selectedRole.isEmpty) {
+      _showMessage('Please select your management role.');
+      return false;
+    }
+
+    if (allowedRole != selectedRole) {
+      _showMessage(
+        'This email is not authorized for the selected portal or role.',
+      );
+      return false;
+    }
+
+    return true;
+  }
 
   void _showMessage(String message) {
     if (!mounted) return;
@@ -189,88 +153,309 @@ class _LoginScreenState extends State<LoginScreen> {
       );
   }
 
-  Future<bool> _saveSession(dynamic data) async {
-    if (data is! Map) return false;
-
-    final token =
-        (data['access_token'] ?? data['token'])?.toString().trim() ?? '';
-
-    if (token.isEmpty) {
-      debugPrint('No access token returned by backend');
-      return false;
-    }
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(tokenStorageKey, token);
-      return true;
-    } catch (e) {
-      debugPrint('Session save error: $e');
-      return false;
-    }
-  }
-
-  String _normalizeRole(String role) {
-    return role
-        .trim()
-        .toUpperCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-  }
-
-  String _extractBackendMessage(dynamic data, int statusCode) {
+  String _extractMessage(dynamic data, int statusCode) {
     if (data is Map) {
       final detail = data['detail'];
-
-      if (detail is String && detail.trim().isNotEmpty) {
+      if (detail is String && detail.isNotEmpty) {
         return detail;
       }
 
-      if (detail is Map) return detail.toString();
-
-      if (detail is List) {
-        return detail.map((e) => e.toString()).join(', ');
-      }
-
       final message = data['message'];
-      if (message != null && message.toString().trim().isNotEmpty) {
-        return message.toString();
-      }
-
-      final error = data['error'];
-      if (error != null && error.toString().trim().isNotEmpty) {
-        return error.toString();
-      }
+      if (message != null) return message.toString();
     }
 
     switch (statusCode) {
       case 400:
-        return 'Invalid request.';
+        return 'Invalid request. Please check your details.';
       case 401:
-        return 'Authentication failed. Check your credentials.';
+        return 'Invalid email or password.';
       case 403:
         return 'You are not authorized for this portal or role.';
       case 404:
-        return 'Authentication endpoint not found.';
+        return 'Login API endpoint was not found.';
       case 500:
-        return 'Server error. Check FastAPI logs.';
+        return 'Server error. Please check backend logs.';
       default:
-        return 'Request failed. HTTP $statusCode';
+        return 'Login failed. HTTP $statusCode';
     }
   }
 
-  // ============================================================
-  // NAVIGATION
-  // ============================================================
+  Future<bool> _saveSession(dynamic data) async {
+    if (data is! Map) return false;
+
+    final token =
+        (data['access_token'] ?? data['token'])
+                ?.toString()
+                .trim() ??
+            '';
+
+    if (token.isEmpty) return false;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(tokenStorageKey, token);
+    return true;
+  }
+
+  void _openDashboardByRole(
+    String role,
+    Map<String, dynamic> userData,
+  ) {
+    final normalizedRole = _normalizeRole(role);
+    final Widget destination;
+
+    switch (normalizedRole) {
+      case 'ADMIN':
+        destination = const AdminDashboard();
+        break;
+
+      case 'ASSET_MANAGER':
+        destination = const AssetManagerDashboard();
+        break;
+
+      case 'DEPARTMENT_HEAD':
+        destination = const DepartmentHeadDashboard();
+        break;
+
+      case 'EMPLOYEE':
+        destination = EmployeeDashboard(
+          isNewUser: false,
+          userData: userData,
+        );
+        break;
+
+      default:
+        _showMessage(
+          'Unknown account role. Contact the administrator.',
+        );
+        return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+      (route) => false,
+    );
+  }
+
+  Future<void> _processSuccessfulLogin(dynamic data) async {
+    if (data is! Map) {
+      _showMessage('Invalid response received from server.');
+      return;
+    }
+
+    final rawUser = data['user'] ?? data;
+
+    if (rawUser is! Map) {
+      _showMessage(
+        'User information was not received from the server.',
+      );
+      return;
+    }
+
+    final user = Map<String, dynamic>.from(rawUser);
+    final email =
+        (user['email'] ?? '').toString().trim().toLowerCase();
+    final serverRole = _normalizeRole(
+      (user['role'] ?? '').toString(),
+    );
+
+    final expectedRole = allowedAccounts[email];
+
+    if (expectedRole == null || expectedRole != serverRole) {
+      _showMessage(
+        'The account email or role does not match the allowed account.',
+      );
+      return;
+    }
+
+    if (serverRole != _selectedRole()) {
+      _showMessage(
+        'Your account role does not match the selected portal.',
+      );
+      return;
+    }
+
+    final saved = await _saveSession(data);
+
+    if (!saved) {
+      _showMessage('No access token received. Please try again.');
+      return;
+    }
+
+    if (!mounted) return;
+    _openDashboardByRole(serverRole, user);
+  }
+
+  Future<dynamic> _postJson(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl$endpoint'),
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 25));
+
+    dynamic data;
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      data = <String, dynamic>{};
+    }
+
+    if (response.statusCode != 200) {
+      throw _ApiException(
+        _extractMessage(data, response.statusCode),
+      );
+    }
+
+    return data;
+  }
+
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text;
+
+    if (email.isEmpty) {
+      _showMessage('Please enter your email.');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showMessage('Please enter your password.');
+      return;
+    }
+
+    if (!_validateAccount(email)) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final body = <String, dynamic>{
+        'email': email,
+        'password': password,
+        'portal': _isManagement ? 'management' : 'employee',
+      };
+
+      if (_isManagement) {
+        body['role'] = _selectedManagementRole;
+      }
+
+      final data = await _postJson('/api/auth/login', body);
+      await _processSuccessfulLogin(data);
+    } on _ApiException catch (e) {
+      _showMessage(e.message);
+    } on TimeoutException {
+      _showMessage('Server timed out. Please try again.');
+    } catch (e) {
+      debugPrint('Login error: $e');
+      _showMessage(
+        'Cannot connect to Orgaflow server. Check your internet and API URL.',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _googleLogin() async {
+    if (_isLoading) return;
+
+    if (!_googleInitialized) {
+      await _initializeGoogle();
+    }
+
+    if (!_googleInitialized) {
+      _showMessage('Google Sign-In could not be initialized.');
+      return;
+    }
+
+    if (_isManagement && _selectedManagementRole == null) {
+      _showMessage('Please select your management role.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final account = await _googleSignIn.authenticate();
+      final googleEmail = account.email.trim().toLowerCase();
+
+      if (!_validateAccount(googleEmail)) {
+        try {
+          await _googleSignIn.signOut();
+        } catch (_) {}
+        return;
+      }
+
+      final idToken = account.authentication.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        _showMessage(
+          'Google ID token was not received. Check your OAuth configuration.',
+        );
+        return;
+      }
+
+      final body = <String, dynamic>{
+        'id_token': idToken,
+        'portal': _isManagement ? 'management' : 'employee',
+      };
+
+      if (_isManagement) {
+        body['role'] = _selectedManagementRole;
+      }
+
+      final data = await _postJson('/api/auth/google-login', body);
+
+      final rawUser = data is Map ? (data['user'] ?? data) : null;
+
+      if (rawUser is! Map ||
+          (rawUser['email'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase() !=
+              googleEmail) {
+        _showMessage(
+          'Google account does not match the server response.',
+        );
+        return;
+      }
+
+      await _processSuccessfulLogin(data);
+    } on _ApiException catch (e) {
+      _showMessage(e.message);
+    } on TimeoutException {
+      _showMessage('Server timed out. Please try again.');
+    } catch (e) {
+      debugPrint('Google login error: $e');
+
+      final error = e.toString().toLowerCase();
+
+      if (error.contains('cancel')) {
+        _showMessage('Google sign-in was cancelled.');
+      } else {
+        _showMessage(
+          'Google sign-in failed. Check Google configuration and backend.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _openSignup() {
     if (_isLoading) return;
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SignupScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const SignupScreen()),
     );
   }
 
@@ -288,288 +473,6 @@ class _LoginScreenState extends State<LoginScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => const TermsConditionsScreen(),
-      ),
-    );
-  }
-
-  void _openDashboardByRole(
-    String role,
-    Map<String, dynamic> userData,
-  ) {
-    final normalizedRole = _normalizeRole(role);
-
-    late final Widget destination;
-
-    switch (normalizedRole) {
-      case 'ADMIN':
-        destination = const AdminDashboard();
-        break;
-
-      case 'ASSET_MANAGER':
-        destination = const AssetManagerDashboard();
-        break;
-
-      case 'DEPARTMENT_HEAD':
-        destination = const DepartmentHeadDashboard();
-        break;
-
-      case 'EMPLOYEE':
-      default:
-        destination = EmployeeDashboard(
-          isNewUser: false,
-          userData: userData,
-        );
-        break;
-    }
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => destination),
-      (route) => false,
-    );
-  }
-
-  // ============================================================
-  // EMAIL AND PASSWORD LOGIN
-  // ============================================================
-
-  Future<void> _login() async {
-    FocusScope.of(context).unfocus();
-
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    if (email.isEmpty) {
-      _showMessage('Please enter your email.');
-      return;
-    }
-
-    if (password.isEmpty) {
-      _showMessage('Please enter your password.');
-      return;
-    }
-
-    if (_isManagement && _selectedManagementRole == null) {
-      _showMessage('Please select your management role.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final Map<String, dynamic> requestBody = {
-        'email': email,
-        'password': password,
-        'portal': _isManagement ? 'management' : 'employee',
-      };
-
-      if (_isManagement) {
-        requestBody['role'] = _selectedManagementRole;
-      }
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/api/auth/login'),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      dynamic data;
-
-      try {
-        data = jsonDecode(response.body);
-      } catch (_) {
-        data = {};
-      }
-
-      if (response.statusCode == 200) {
-        final rawUser = data is Map ? (data['user'] ?? data) : {};
-
-        if (rawUser is! Map) {
-          _showMessage('Invalid user data received from server.');
-          return;
-        }
-
-        final userData = Map<String, dynamic>.from(rawUser);
-
-        final saved = await _saveSession(data);
-
-        if (!saved) {
-          _showMessage(
-            'Login succeeded, but no session token was returned.',
-          );
-          return;
-        }
-
-        if (!mounted) return;
-
-        _openDashboardByRole(
-          (userData['role'] ?? 'EMPLOYEE').toString(),
-          userData,
-        );
-      } else {
-        _showMessage(
-          _extractBackendMessage(data, response.statusCode),
-        );
-      }
-    } on TimeoutException {
-      _showMessage('Server connection timed out. Please try again.');
-    } catch (e) {
-      debugPrint('Login error: $e');
-
-      _showMessage(
-        'Cannot connect to Orgaflow server. Check FastAPI and your connection.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  // ============================================================
-  // GOOGLE SIGN-IN
-  // ============================================================
-
-  Future<void> _googleLogin() async {
-    if (_isLoading) return;
-
-    if (_isManagement && _selectedManagementRole == null) {
-      _showMessage('Please select your management role.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final account = await _googleSignIn.authenticate();
-
-      final idToken = account.authentication.idToken;
-
-      if (idToken == null || idToken.isEmpty) {
-        _showMessage('Google authentication token was not received.');
-        return;
-      }
-
-      final Map<String, dynamic> requestBody = {
-        'id_token': idToken,
-        'portal': _isManagement ? 'management' : 'employee',
-      };
-
-      if (_isManagement) {
-        requestBody['role'] = _selectedManagementRole;
-      }
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/api/auth/google-login'),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      dynamic data;
-
-      try {
-        data = jsonDecode(response.body);
-      } catch (_) {
-        data = {};
-      }
-
-      if (response.statusCode == 200) {
-        final rawUser = data is Map ? (data['user'] ?? data) : {};
-
-        if (rawUser is! Map) {
-          _showMessage('Invalid user data received from server.');
-          return;
-        }
-
-        final userData = Map<String, dynamic>.from(rawUser);
-
-        final saved = await _saveSession(data);
-
-        if (!saved) {
-          _showMessage(
-            'Google login succeeded, but no session token was returned.',
-          );
-          return;
-        }
-
-        if (!mounted) return;
-
-        _openDashboardByRole(
-          (userData['role'] ?? 'EMPLOYEE').toString(),
-          userData,
-        );
-      } else {
-        _showMessage(
-          _extractBackendMessage(data, response.statusCode),
-        );
-      }
-    } on TimeoutException {
-      _showMessage('Server connection timed out. Please try again.');
-    } catch (e) {
-      debugPrint('Google login error: $e');
-
-      final error = e.toString().toLowerCase();
-
-      if (error.contains('cancel')) {
-        _showMessage('Google sign-in was cancelled.');
-      } else {
-        _showMessage(
-          'Google sign-in failed or the Orgaflow server is unreachable.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  // ============================================================
-  // REUSABLE UI
-  // ============================================================
-
-  Widget _buildLogo() {
-    return Container(
-      width: 100,
-      height: 100,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.asset(
-          'assets/images/orgaflow_logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) {
-            return const ColoredBox(
-              color: primaryColor,
-              child: Icon(
-                Icons.business_center_rounded,
-                color: Colors.white,
-                size: 50,
-              ),
-            );
-          },
-        ),
       ),
     );
   }
@@ -599,7 +502,10 @@ class _LoginScreenState extends State<LoginScreen> {
             title: 'Management',
             selected: _isManagement,
             onTap: () {
-              setState(() => _isManagement = true);
+              setState(() {
+                _isManagement = true;
+                _selectedManagementRole = null;
+              });
             },
           ),
         ],
@@ -627,7 +533,9 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : const Color(0xFF4B5563),
+              color: selected
+                  ? Colors.white
+                  : const Color(0xFF4B5563),
             ),
           ),
         ),
@@ -635,88 +543,26 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      enabled: !_isLoading,
-      obscureText: obscureText,
-      keyboardType: hint == 'Email'
-          ? TextInputType.emailAddress
-          : TextInputType.text,
-      textInputAction:
-          hint == 'Email' ? TextInputAction.next : TextInputAction.done,
-      onSubmitted: hint == 'Password' ? (_) => _login() : null,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: primaryColor, size: 21),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 17,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(
-            color: primaryColor,
-            width: 1.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManagementRoleDropdown() {
+  Widget _buildRoleDropdown() {
     if (!_isManagement) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: DropdownButtonFormField<String>(
-        initialValue: _selectedManagementRole,
-        decoration: InputDecoration(
-          hintText: 'Select Management Role',
-          prefixIcon: const Icon(
-            Icons.admin_panel_settings_outlined,
-            color: primaryColor,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
-          ),
+        value: _selectedManagementRole,
+        isExpanded: true,
+        decoration: _inputDecoration(
+          'Select Management Role',
+          Icons.admin_panel_settings_outlined,
         ),
         items: const [
           DropdownMenuItem(
-            value: 'ADMIN',
-            child: Text('Admin'),
-          ),
-          DropdownMenuItem(
             value: 'ASSET_MANAGER',
             child: Text('Asset Manager'),
+          ),
+          DropdownMenuItem(
+            value: 'ADMIN',
+            child: Text('Admin'),
           ),
           DropdownMenuItem(
             value: 'DEPARTMENT_HEAD',
@@ -732,7 +578,80 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLoginButton() {
+  InputDecoration _inputDecoration(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: Icon(icon, color: primaryColor),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 17,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(
+          color: primaryColor,
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmailField() {
+    return TextField(
+      controller: _emailController,
+      enabled: !_isLoading,
+      keyboardType: TextInputType.emailAddress,
+      textInputAction: TextInputAction.next,
+      autofillHints: const [AutofillHints.email],
+      decoration: _inputDecoration(
+        'Email address',
+        Icons.email_outlined,
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return TextField(
+      controller: _passwordController,
+      enabled: !_isLoading,
+      obscureText: _obscurePassword,
+      textInputAction: TextInputAction.done,
+      autofillHints: const [AutofillHints.password],
+      onSubmitted: (_) => _login(),
+      decoration: _inputDecoration(
+        'Password',
+        Icons.lock_outline_rounded,
+      ).copyWith(
+        suffixIcon: IconButton(
+          onPressed: _isLoading
+              ? null
+              : () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
+          icon: Icon(
+            _obscurePassword
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            color: secondaryText,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrimaryButton() {
     return SizedBox(
       width: double.infinity,
       height: 54,
@@ -741,7 +660,8 @@ class _LoginScreenState extends State<LoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: primaryColor.withValues(alpha: 0.5),
+          disabledBackgroundColor:
+              primaryColor.withValues(alpha: 0.5),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
@@ -768,86 +688,51 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildGoogleButton() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF172B4D).withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: OutlinedButton(
+      height: 54,
+      child: OutlinedButton.icon(
         onPressed: _isLoading ? null : _googleLogin,
+        icon: const Icon(Icons.g_mobiledata_rounded, size: 30),
+        label: const Text(
+          'Continue with Google',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF202124),
-          disabledForegroundColor: secondaryText,
+          backgroundColor: Colors.white,
           side: const BorderSide(color: Color(0xFFDADCE0)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          elevation: 0,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isLoading)
-              const SizedBox(
-                width: 21,
-                height: 21,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: primaryColor,
-                ),
-              )
-            else
-              const GoogleLogo(size: 23),
-            const SizedBox(width: 12),
-            Text(
-              _isLoading ? 'Connecting to Google...' : 'Continue with Google',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return Row(
+  Widget _buildFooterLinks() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        const Expanded(child: Divider(color: Color(0xFFDDE1E8))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Text(
-            'OR',
-            style: TextStyle(
-              color: secondaryText,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
-          ),
+        TextButton(
+          onPressed: _isLoading ? null : _openPrivacyPolicy,
+          child: const Text('Privacy Policy'),
         ),
-        const Expanded(child: Divider(color: Color(0xFFDDE1E8))),
+        const Text(
+          '•',
+          style: TextStyle(color: secondaryText),
+        ),
+        TextButton(
+          onPressed: _isLoading ? null : _openTermsConditions,
+          child: const Text('Terms & Conditions'),
+        ),
       ],
     );
   }
-
-  // ============================================================
-  // SCREEN
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -863,13 +748,36 @@ class _LoginScreenState extends State<LoginScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 4),
-
-                  _buildLogo(),
-
+                  Center(
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withValues(alpha: 0.12),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/images/orgaflow_logo.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.business_center_rounded,
+                          size: 48,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 22),
-
                   const Text(
                     'Welcome to Orgaflow',
                     textAlign: TextAlign.center,
@@ -880,9 +788,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Color(0xFF172033),
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   const Text(
                     'Manage your organization with ease',
                     textAlign: TextAlign.center,
@@ -891,59 +797,46 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: secondaryText,
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   _buildPortalToggle(),
-
                   const SizedBox(height: 22),
-
-                  _buildTextField(
-                    controller: _emailController,
-                    hint: 'Email',
-                    icon: Icons.email_outlined,
-                  ),
-
+                  _buildEmailField(),
                   const SizedBox(height: 14),
-
-                  _buildTextField(
-                    controller: _passwordController,
-                    hint: 'Password',
-                    icon: Icons.lock_outline_rounded,
-                    obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: secondaryText,
+                  _buildPasswordField(),
+                  _buildRoleDropdown(),
+                  const SizedBox(height: 20),
+                  _buildPrimaryButton(),
+                  const SizedBox(height: 22),
+                  const Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: Color(0xFFDDE1E8),
+                        ),
                       ),
-                    ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        child: Text(
+                          'OR',
+                          style: TextStyle(
+                            color: secondaryText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: Color(0xFFDDE1E8),
+                        ),
+                      ),
+                    ],
                   ),
-
-                  _buildManagementRoleDropdown(),
-
-                  const SizedBox(height: 20),
-
-                  _buildLoginButton(),
-
-                  const SizedBox(height: 20),
-
-                  _buildDivider(),
-
                   const SizedBox(height: 18),
-
                   _buildGoogleButton(),
-
                   const SizedBox(height: 24),
-
                   Wrap(
                     alignment: WrapAlignment.center,
                     crossAxisAlignment: WrapCrossAlignment.center,
@@ -955,67 +848,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: secondaryText,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: _isLoading ? null : _openSignup,
+                      TextButton(
+                        onPressed: _isLoading ? null : _openSignup,
                         child: const Text(
                           'Sign Up',
                           style: TextStyle(
-                            fontSize: 13.5,
                             fontWeight: FontWeight.w800,
-                            color: primaryColor,
                           ),
                         ),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 20),
-
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      GestureDetector(
-                        onTap: _openPrivacyPolicy,
-                        child: const Text(
-                          'Privacy Policy',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: primaryColor,
-                          ),
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 9),
-                        child: Text(
-                          '•',
-                          style: TextStyle(color: secondaryText),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _openTermsConditions,
-                        child: const Text(
-                          'Terms & Conditions',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: primaryColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  const Text(
-                    '© 2026 Orgaflow',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: secondaryText,
-                    ),
-                  ),
+                  const SizedBox(height: 8),
+                  _buildFooterLinks(),
                 ],
               ),
             ),
@@ -1024,4 +869,13 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _ApiException implements Exception {
+  final String message;
+
+  const _ApiException(this.message);
+
+  @override
+  String toString() => message;
 }
