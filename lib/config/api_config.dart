@@ -12,7 +12,7 @@ class AppConfig {
   ///     http://10.0.2.2:8000
   /// - Physical Phone with `adb reverse tcp:8000 tcp:8000`:
   ///     http://127.0.0.1:8000
-  static const String baseUrl = 'https://orgaflow-backend.onrender.com';
+  static const String baseUrl = 'https://orgaflow-app.onrender.com';
 
   /// Google Server Client ID for OAuth token verification.
   static const String googleServerClientId =
